@@ -229,6 +229,14 @@ function connect(room, name, token, isAuto) {
         hidePanel('succession-panel');
       } else if (data.type === 'mayorClose') {
         hidePanel('mayor-panel');
+      } else if (data.type === 'gameOver') {
+        showGameOver(data.winner);
+      } else if (data.type === 'foxTurn') {
+        showFoxPanel(data);
+      } else if (data.type === 'foxAck') {
+        showFoxWaiting(data.target);
+      } else if (data.type === 'foxAnswer') {
+        showFoxAnswer(data.target, data.answer);
       } else if (data.type === 'seerTurn') {
         showSeerPanel(data.targets || []);
       } else if (data.type === 'seerResult') {
@@ -415,7 +423,7 @@ function setAliveUI(alive) {
   const banner = document.getElementById('dead-banner');
   if (banner) banner.style.display = alive ? 'none' : 'block';
   if (!alive) {
-    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel'].forEach(hidePanel);
+    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'fox-panel'].forEach(hidePanel);
   }
 }
 
@@ -577,6 +585,7 @@ let voteState = { targets: [], my: null, picked: null };
 
 function showVotePanel(data) {
   hidePanel('seer-panel');   // au lever du jour, l'écran de la Voyante se ferme
+  hidePanel('fox-panel');    // … et celui du Renard
   voteState = { targets: data.targets || [], my: data.myVote || null, picked: data.myVote || null };
   renderVoteList();
   showPanel('vote-panel');
@@ -618,7 +627,7 @@ function voteConfirm() {
 let seerState = { targets: [], picked: null };
 
 function showSeerPanel(targets) {
-  seerState = { targets, picked: null };
+  seerState = { targets, picked: null, resultShown: false };
   document.getElementById('seer-choose').style.display = 'block';
   document.getElementById('seer-result').style.display = 'none';
   renderSeerList();
@@ -645,6 +654,7 @@ function seerConfirm() {
 }
 
 function showSeerResult(name, role) {
+  seerState.resultShown = true;
   const data = roleData[role] || { image: null, description: `🎭 <strong>${escapeText(role)}</strong>` };
   document.getElementById('seer-choose').style.display = 'none';
   document.getElementById('seer-result').style.display = 'block';
@@ -731,4 +741,87 @@ function successionConfirm() {
   if (!confirm(`Transmettre le rôle de Maire à ${successionState.picked} ?`)) return;
   document.querySelectorAll('#succession-panel button').forEach((b) => { b.disabled = true; });
   conn.send({ type: 'mayorSuccessor', target: successionState.picked });
+}
+
+// La Voyante referme son résultat : le tour est fini, la régie lance « Fermez les yeux »
+function seerClose() {
+  const wasShown = seerState.resultShown;
+  seerState.resultShown = false;
+  hidePanel('seer-panel');
+  if (wasShown && conn && conn.open) conn.send({ type: 'seerClosed' });
+}
+
+// Fin de partie : tous les Loups-Garous sont morts
+function showGameOver(winner) {
+  const el = document.getElementById('gameover-banner');
+  if (!el) return;
+  if (!winner) { el.style.display = 'none'; return; }   // la partie reprend
+  el.textContent = winner === 'village' ? '🏆 Victoire du village ! Tous les Loups-Garous sont morts.' : '🏁 Partie terminée.';
+  el.style.display = 'block';
+  ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'fox-panel'].forEach(hidePanel);
+}
+
+// --- Renard : il désigne UN joueur (noms uniquement) puis lit la réponse OUI / NON du Maître du Jeu ---
+let foxState = { targets: [], picked: null, answerShown: false };
+
+function showFoxPanel(data) {
+  foxState = { targets: data.targets || [], picked: null, answerShown: false };
+  document.getElementById('fox-result').style.display = 'none';
+  if (data.chosen) {                       // reconnexion : il avait déjà choisi
+    showFoxWaiting(data.chosen);
+  } else {
+    document.getElementById('fox-choose').style.display = 'block';
+    document.getElementById('fox-wait').style.display = 'none';
+    renderFoxList();
+  }
+  showPanel('fox-panel');
+}
+
+function renderFoxList() {
+  const list = document.getElementById('fox-list');
+  list.innerHTML = '';
+  foxState.targets.forEach((name) => {
+    list.appendChild(pickButton(name, {
+      selected: foxState.picked === name,
+      onClick: () => { foxState.picked = name; renderFoxList(); }
+    }));
+  });
+  const btn = document.getElementById('fox-confirm');
+  btn.disabled = !foxState.picked;
+  btn.textContent = foxState.picked ? `Désigner ${foxState.picked}` : 'Désigner ce joueur';
+}
+
+function foxConfirm() {
+  if (!conn || !conn.open || !foxState.picked) return;
+  if (!confirm(`Sonder ${foxState.picked} ? Tu ne peux désigner qu'un seul joueur.`)) return;
+  document.querySelectorAll('#fox-choose button').forEach((b) => { b.disabled = true; });
+  conn.send({ type: 'foxChoice', target: foxState.picked });
+}
+
+function showFoxWaiting(name) {
+  document.getElementById('fox-choose').style.display = 'none';
+  document.getElementById('fox-result').style.display = 'none';
+  document.getElementById('fox-wait').style.display = 'block';
+  document.getElementById('fox-wait-text').textContent = `Tu as désigné ${name}. Attends la réponse du Maître du Jeu…`;
+  showPanel('fox-panel');
+}
+
+function showFoxAnswer(name, answer) {
+  foxState.answerShown = true;
+  document.getElementById('fox-choose').style.display = 'none';
+  document.getElementById('fox-wait').style.display = 'none';
+  document.getElementById('fox-result').style.display = 'block';
+  document.getElementById('fox-result-target').textContent = `Ta réponse pour ${name} :`;
+  const el = document.getElementById('fox-answer');
+  el.className = 'fox-answer ' + (answer ? 'yes' : 'no');
+  el.textContent = answer ? '🐺 OUI — un Loup-Garou est détecté' : '🌿 NON — aucun Loup-Garou';
+  showPanel('fox-panel');
+}
+
+// Le Renard referme la réponse : son tour est fini, la régie lance « Fermez les yeux »
+function foxClose() {
+  const wasShown = foxState.answerShown;
+  foxState.answerShown = false;
+  hidePanel('fox-panel');
+  if (wasShown && conn && conn.open) conn.send({ type: 'foxClosed' });
 }

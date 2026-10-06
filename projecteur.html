@@ -5,6 +5,18 @@
   <link rel="icon" href="data:,">
   <title>Loup-Garou - Écran Projecteur</title>
   <style>
+    /* Police Angel Wish : noms des joueurs */
+    @font-face {
+      font-family: 'Angel Wish';
+      src: url('Angel_wish.ttf') format('truetype'),
+           url('Angel_Wish.ttf') format('truetype'),
+           url('angel_wish.ttf') format('truetype'),
+           url('angel-wish.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+
     /* Police Wolf Brothers */
     @font-face {
       font-family: 'Wolf Brothers';
@@ -187,8 +199,8 @@
       border: 1px solid rgba(185, 28, 28, 0.6);
       border-radius: 4px;
       padding: 8px 12px;
-      font-family: 'Wolf Brothers', sans-serif;
-      font-size: 1.2rem;
+      font-family: 'Angel Wish', 'Wolf Brothers', sans-serif;
+      font-size: 1.6rem;
       letter-spacing: 1px;
       color: #fca5a5;
       display: flex;
@@ -255,8 +267,8 @@
     .death-item { position: relative; padding: 2vh 5vw; text-align: center; }
     .death-name {
       --len: 8;
-      font-family: 'Wolf Brothers', 'Segoe UI', sans-serif;
-      font-size: min(16vh, calc(170vw / var(--len)));
+      font-family: 'Angel Wish', 'Wolf Brothers', 'Segoe UI', sans-serif;
+      font-size: min(19vh, calc(190vw / var(--len)));
       line-height: 1;
       letter-spacing: 0.5vh;
       white-space: nowrap;
@@ -297,8 +309,8 @@
     }
     .mayor-name {
       --len: 8;
-      font-family: 'Wolf Brothers', 'Segoe UI', sans-serif;
-      font-size: min(18vh, calc(170vw / var(--len)));
+      font-family: 'Angel Wish', 'Wolf Brothers', 'Segoe UI', sans-serif;
+      font-size: min(21vh, calc(190vw / var(--len)));
       line-height: 1;
       letter-spacing: 0.6vh;
       white-space: nowrap;
@@ -324,6 +336,31 @@
     @media (prefers-reduced-motion: reduce) {
       .mayor-crown, .mayor-name, .mayor-sub { animation: none; }
     }
+
+    /* VICTOIRE DU VILLAGE */
+    #victory-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 45;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3vh;
+      text-align: center;
+      background: radial-gradient(circle at center, rgba(70, 48, 4, 0.88) 0%, rgba(0, 0, 0, 0.96) 100%);
+      cursor: pointer;
+    }
+    .victory-trophy { font-size: 24vh; line-height: 1; filter: drop-shadow(0 0 3vh rgba(250, 204, 21, 0.85)); animation: crownDrop 0.9s cubic-bezier(0.2, 0.9, 0.3, 1.2) both; }
+    .victory-title {
+      font-family: 'Wolf Brothers', 'Segoe UI', sans-serif;
+      font-size: 14vh;
+      line-height: 1.05;
+      color: #fde68a;
+      text-shadow: 0 0 4vh rgba(250, 204, 21, 0.75), 0 0.6vh 1.4vh #000;
+      animation: mayorNameIn 0.8s 0.4s ease-out both;
+    }
+    .victory-sub { font-size: 4.6vh; color: #fcd34d; text-shadow: 0 0.3vh 0.8vh #000; animation: mayorNameIn 0.8s 0.8s ease-out both; }
   </style>
 </head>
 <body>
@@ -365,6 +402,11 @@
   <!-- Vidéos d'annonce + noms des joueurs -->
   <video id="event-video" playsinline></video>
   <div id="death-overlay"><div id="death-list"></div></div>
+  <div id="victory-overlay">
+    <div class="victory-trophy">🏆</div>
+    <div class="victory-title">Victoire du village !</div>
+    <div class="victory-sub">Tous les Loups-Garous ont été éliminés</div>
+  </div>
   <div id="mayor-overlay">
     <div class="mayor-crown">👑</div>
     <div id="mayor-name" class="mayor-name"></div>
@@ -376,7 +418,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 35');
+    console.info('Projecteur - version 38');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -562,6 +604,11 @@
     });
 
 
+    // --- VICTOIRE DU VILLAGE ---
+    function hideVictory() { document.getElementById('victory-overlay').style.display = 'none'; }
+    function showVictory() { document.getElementById('victory-overlay').style.display = 'flex'; }
+    document.getElementById('victory-overlay').addEventListener('click', hideVictory);
+
     // --- ÉLECTION DU MAIRE : couronne + nom ---
     let mayorTimer = null;
     function hideMayor() {
@@ -602,7 +649,13 @@
       endEvent();
       hideOverlay();
       eventActive = true;
-      if (ytReady) ytPlayer.setVolume(Math.min(targetVolume, 10));   // la scène passe au second plan
+      if (data.stopScene) {
+        // élimination par le village : la scène (jour) s'arrête, le fond du village réapparaît derrière
+        if (ytReady) ytPlayer.stopVideo();
+        document.getElementById('player').style.visibility = 'hidden';
+      } else if (ytReady) {
+        ytPlayer.setVolume(Math.min(targetVolume, 10));   // la scène passe au second plan
+      }
 
       const showNames = () => showDeaths(data.deaths, { overVideo: true, autoHide: false });
       eventVideo.onended = () => {
@@ -674,6 +727,14 @@
           }
           break;
 
+        case 'victory':
+          showVictory();
+          break;
+
+        case 'victoryCancel':
+          hideVictory();
+          break;
+
         case 'announceMayor':
           showMayor(data.name);
           break;
@@ -715,6 +776,7 @@
           hideOverlay();
           endEvent();
           hideMayor();
+          hideVictory();
           break;
 
         case 'togglePause':

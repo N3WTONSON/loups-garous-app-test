@@ -192,8 +192,17 @@
         case 'mayorTurn':
           if (!msg.myVote && msg.targets.length) send({ type: 'mayorVote', target: rnd(msg.targets) }, d);
           break;
+        case 'foxTurn':
+          if (!msg.chosen && msg.targets.length) send({ type: 'foxChoice', target: rnd(msg.targets) }, d);
+          break;
+        case 'foxAnswer':
+          send({ type: 'foxClosed' }, d + 600);
+          break;
         case 'seerTurn':
           if (msg.targets.length) send({ type: 'seerChoice', target: rnd(msg.targets) }, d);
+          break;
+        case 'seerResult':
+          send({ type: 'seerClosed' }, d + 600);
           break;
         case 'voteTurn':
           if (!msg.myVote && msg.targets.length) send({ type: 'villageVote', target: rnd(msg.targets) }, d);

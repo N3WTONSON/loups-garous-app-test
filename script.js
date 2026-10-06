@@ -1,4 +1,4 @@
-const VERSION_APP = "35";
+const VERSION_APP = "38";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -132,7 +132,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=35', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=38', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -144,8 +144,9 @@ window.addEventListener('message', (event) => {
   if (data.action === 'projectorReady') {
     syncLobbyToProjector();
   } else if (data.action === 'eventEnded') {
-    // l'annonce de mort vient de se terminer : on passe à la suivante, puis au lever du jour
-    if (dayQueue) nextDayStep();
+    // l'annonce de mort vient de se terminer : victoire éventuelle d'abord, sinon l'annonce suivante, puis le lever du jour
+    if (victoryPending && allWolvesDead()) { dayQueue = null; showVictory(); }
+    else { victoryPending = false; if (dayQueue) nextDayStep(); }
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
     if (currentOverlayFile && mediaUrl('video', currentOverlayFile) === data.url) {
@@ -214,6 +215,9 @@ function routePlayerMessage(conn, data) {
   else if (data.type === 'witchAction') handleWitchAction(conn, data);
   else if (data.type === 'villageVote') handleVillageVote(conn, data);
   else if (data.type === 'seerChoice') handleSeerChoice(conn, data);
+  else if (data.type === 'seerClosed') handleSeerClosed(conn);
+  else if (data.type === 'foxChoice') handleFoxChoice(conn, data);
+  else if (data.type === 'foxClosed') handleFoxClosed(conn);
   else if (data.type === 'mayorVote') handleMayorVote(conn, data);
   else if (data.type === 'mayorSuccessor') handleMayorSuccessor(conn, data);
 }
@@ -381,8 +385,10 @@ function updateCallButtons() {
 
     const once = btn.dataset.call;
     const used = !!once && calledOnce.has(once);
-    btn.disabled = used;
-    btn.classList.toggle('used', used);
+    // rôle sans joueur en vie (mort, ou tous les Loups-Garous morts) : bouton grisé et inutilisable
+    const noneAlive = distributed && !players.some((p) => p.alive && p.role === btn.dataset.role);
+    btn.disabled = used || noneAlive;
+    btn.classList.toggle('used', used || noneAlive);
   });
 
   if (!distributed) {
@@ -396,21 +402,32 @@ function updateCallButtons() {
   }
 }
 
+const ROLE_EMOJI = {
+  'Loup-Garou': '🐺', 'Villageois': '👨‍🌾', 'Voyante': '🔮', 'Sorcière': '🧪', 'Chasseur': '🏹',
+  'Cupidon': '💘', 'Voleur': '🕵️', 'Renard': '🦊', 'Petite Fille': '👧'
+};
+
 // Joueur dont c'est le tour pendant la nuit : null si ce n'est pas lui
 function turnStatusOf(p) {
   if (!p.alive || !currentTurnRole || p.role !== currentTurnRole) return null;
   switch (currentTurnRole) {
     case 'Voleur': return thiefOffers.has(p.name) ? 'wait' : 'done';
     case 'Cupidon': return cupidWaiting.has(p.name) ? 'wait' : 'done';
-    case 'Voyante': return seerWaiting.has(p.name) ? 'wait' : 'done';
+    case 'Voyante': return seerWaiting.has(p.name) ? 'wait' : ((seerResults.has(p.name) && !seerAcked.has(p.name)) ? 'view' : 'done');
     case 'Sorcière': return witchWaiting.has(p.name) ? 'wait' : 'done';
     case 'Loup-Garou': return (wolvesOpen && !night.wolfFinal.has(p.name)) ? 'wait' : 'done';
-    default: return 'oral';          // Renard, Chasseur : ils répondent à l'oral
+    case 'Renard':
+      if (foxWaiting.has(p.name) || !foxChoices.has(p.name)) return 'wait';        // il choisit un joueur
+      if (!foxAnswered.has(p.name)) return 'answer';                               // le MJ doit répondre Oui / Non
+      return foxAcked.has(p.name) ? 'done' : 'view';                               // il consulte la réponse
+    default: return 'oral';          // Chasseur : répond à l'oral
   }
 }
 
 const TURN_BADGES = {
   wait: '⏳ À son tour : il choisit…',
+  view: '👀 Consulte sa vision',
+  answer: '❓ A désigné un joueur : répondez Oui / Non',
   done: '✅ A joué',
   oral: '🎙️ À son tour'
 };
@@ -422,7 +439,7 @@ function renderMJDashboard() {
     return `
     <tr class="${[item.alive ? '' : 'dead', turn ? 'turn turn-' + turn : ''].join(' ').trim()}">
       <td><strong class="nom-joueur">${escapeHtml(item.name)}</strong>${item.name === mayor ? ' 👑' : ''} ${item.connected ? '' : '📴'}${turn ? `<span class="turn-badge">${TURN_BADGES[turn]}</span>` : ''}</td>
-      <td>🎭 ${escapeHtml(item.role)}</td>
+      <td>${ROLE_EMOJI[item.role] || '🎭'} ${escapeHtml(item.role)}</td>
       <td>
         <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
           <input type="checkbox" ${item.inLove ? 'checked' : ''} onchange="togglePlayerLove(${index})">
@@ -470,6 +487,7 @@ function togglePlayerStatus(index) {
     const deaths = killPlayers([p.name]);
     renderMJDashboard();
     announceDeaths(deaths);
+    checkVictory('delay');
   } else {
     setAlive(p, true);
     p.diedOfLove = false;
@@ -587,8 +605,14 @@ function playCommand(cmd) {
 
 function playRenardResponse(isPositive) {
   if (!isCenteredVideo("Renard.mp4")) playRoleVideo("Renard.mp4");
-  // fin du tour du Renard : après la réponse, « Fermez les yeux » est lu
-  playAudioFile(isPositive ? "Appel Renard oui.mp3" : "Appel Renard non.mp3", { then: CLOSE_EYES_AUDIO });
+
+  // le Renard joue sur son téléphone ? alors sa réponse s'affiche chez lui et « Fermez les yeux » attend qu'il referme
+  const foxes = alivePlayers().filter((p) => p.role === 'Renard');
+  const usesPhone = foxes.some((f) => f.connected && (foxWaiting.has(f.name) || (foxChoices.has(f.name) && !foxAcked.has(f.name))));
+  deliverFoxAnswer(isPositive);
+
+  // sinon (pas de Renard, ou hors ligne) : enchaînement classique après la voix du MJ
+  playAudioFile(isPositive ? "Appel Renard oui.mp3" : "Appel Renard non.mp3", usesPhone ? {} : { then: CLOSE_EYES_AUDIO });
 }
 
 function playSorcierePotions(type) {
@@ -642,13 +666,13 @@ function onAudioFinished() {
 
 // Fin d'un tour de nuit (Voleur, Cupidon, Voyante, Loups, Sorcière) : « Fermez les yeux » est lu
 // automatiquement, après la voix en cours s'il y en a une.
-function scheduleCloseEyes() {
+function scheduleCloseEyes(delay = END_TURN_DELAY) {
   setTimeout(() => {
     const speaking = window.speechSynthesis && window.speechSynthesis.speaking;
     const busy = currentAudio && !currentAudio.paused && !currentAudio.ended;
     if (busy || speaking) afterAudio = CLOSE_EYES_AUDIO;
     else playAudioFile(CLOSE_EYES_AUDIO);
-  }, END_TURN_DELAY);
+  }, delay);
 }
 
 function audioCandidates(filename) {
@@ -766,6 +790,18 @@ function togglePauseAllMedia() {
 }
 
 // --- APPELS RÔLES & EFFETS ---
+// Audio de l'appel de la Sorcière : il annonce les potions qu'il lui reste
+//   2 potions -> « vous possédez encore vos deux potions » ; plus que la vie -> « potion de vie » ;
+//   plus que la mort -> « potion de mort » ; aucune potion -> appel simple
+function witchCallAudio() {
+  const life = !witchState.lifeUsed;
+  const death = !witchState.deathUsed;
+  if (life && death) return "Sorciere 2 potions.mp3";
+  if (life) return "Sorciere potion de vie.mp3";
+  if (death) return "Sorciere potion de mort.mp3";
+  return "Sorciere.mp3";
+}
+
 function playRole(role) {
   const roleFiles = {
     voleur: { audio: "Appel voleur V3.mp3", video: "Voleur.mp4" },
@@ -782,7 +818,7 @@ function playRole(role) {
   if (calledOnce.has(role)) return;
   currentTurnRole = TURN_ROLE_BY_CALL[role] || null;
 
-  playAudioFile(item.audio);
+  playAudioFile(role === 'sorciere' ? witchCallAudio() : item.audio);
   if (item.video) playRoleVideo(item.video, role === 'chasseur' ? 'full' : 'center');
 
   if (role === 'voleur' || role === 'cupidon') {
@@ -794,6 +830,7 @@ function playRole(role) {
   if (role === 'loups') startWolfTurn();
   if (role === 'sorciere') startWitchTurn();
   if (role === 'voyante') startSeerTurn();
+  if (role === 'renard') startFoxTurn();
   renderMJDashboard();
 }
 
@@ -872,6 +909,7 @@ function handleThiefSteal(conn, data) {
   thiefOffers.delete(thief.name);
   thief.role = offer.role;
   holder.role = 'Villageois';
+  updateCallButtons();
 
   if (thief.conn && thief.conn.open) thief.conn.send({ type: 'assignRole', role: thief.role });
   if (holder.conn && holder.conn.open) holder.conn.send({ type: 'assignRole', role: holder.role });
@@ -932,8 +970,54 @@ function resetGameAutomation() {
   dayQueue = null;
   seerWaiting = new Set();
   seerResults = new Map();
+  seerAcked = new Set();
+  foxWaiting = new Set();
+  foxChoices = new Map();
+  foxAnswered = new Map();
+  foxAcked = new Set();
+  foxQueuedAnswer = null;
   seerLog = null;
   currentTurnRole = null;
+  gameOver = false;
+  victoryPending = false;
+}
+
+// ------------------------------ VICTOIRE DU VILLAGE ------------------------------
+// La partie est gagnée quand tous les Loups-Garous sont morts.
+let gameOver = false;
+let victoryPending = false;
+
+function allWolvesDead() {
+  const wolves = players.filter((p) => p.role === 'Loup-Garou');
+  return wolves.length > 0 && wolves.every((p) => !p.alive);
+}
+
+// mode 'event' : la victoire est annoncée à la fin de la vidéo d'annonce ; mode 'delay' : après l'affichage des noms
+function checkVictory(mode) {
+  if (gameOver || victoryPending || !distributed || !allWolvesDead()) return;
+  victoryPending = true;
+  if (mode === 'delay') setTimeout(() => { if (victoryPending) showVictory(); }, 8500);
+}
+
+function showVictory() {
+  victoryPending = false;
+  if (gameOver || !allWolvesDead()) return;
+  gameOver = true;
+  closeVillageVote(true);
+  closeMayorVote(true);
+  const shown = sendToProjector({ action: 'victory', winner: 'village' });
+  players.forEach((p) => sendTo(p, { type: 'gameOver', winner: 'village' }));
+  showToast(`🏆 Tous les Loups-Garous sont morts : victoire du village !${shown ? '' : ' (écran secondaire fermé)'}`, 'info');
+  renderMJDashboard();
+}
+
+// Un Loup-Garou est ressuscité après la victoire : la partie continue
+function cancelVictory() {
+  gameOver = false;
+  sendToProjector({ action: 'victoryCancel' });
+  players.forEach((p) => sendTo(p, { type: 'gameOver', winner: null }));
+  showToast("La partie reprend : un Loup-Garou est de nouveau en vie.", 'info');
+  renderMJDashboard();
 }
 
 // --- outils ---
@@ -971,6 +1055,11 @@ function topOf(counts) {
 function setAlive(p, alive) {
   p.alive = alive;
   sendTo(p, { type: 'status', alive });
+  updateCallButtons();
+  if (alive && !allWolvesDead()) {
+    victoryPending = false;
+    if (gameOver) cancelVictory();
+  }
 }
 
 // Tue les joueurs donnés ; l'amoureux d'un mort meurt automatiquement de chagrin
@@ -1010,6 +1099,7 @@ function resyncPlayer(p) {
   if (cupidWaiting.has(p.name)) sendCupidTurn(p);
   if (witchWaiting.has(p.name)) sendWitchTurn(p);
   if (wolvesOpen && p.role === 'Loup-Garou' && !night.wolfFinal.has(p.name)) sendWolfTurn(p);
+  if (foxWaiting.has(p.name) || foxChoices.has(p.name)) sendFoxTurn(p);
   if (seerResults.has(p.name)) { const r = seerResults.get(p.name); sendTo(p, { type: 'seerResult', name: r.name, role: r.role }); }
   else if (seerWaiting.has(p.name)) sendSeerTurn(p);
   if (mayorVote.open) sendMayorTurn(p);
@@ -1054,7 +1144,7 @@ function wolvesAlive() { return alivePlayers().filter((p) => p.role === 'Loup-Ga
 function sendWolfTurn(w) {
   sendTo(w, {
     type: 'wolfTurn',
-    targets: alivePlayers().filter((p) => p !== w).map((p) => p.name),
+    targets: alivePlayers().filter((p) => p.role !== 'Loup-Garou').map((p) => p.name),   // les loups n'apparaissent pas
     votes: aliveTally(night.wolfVotes),
     myVote: night.wolfVotes.get(w.name) || null,
     final: night.wolfFinal.has(w.name)
@@ -1085,7 +1175,7 @@ function handleWolfVote(conn, data) {
   const w = senderOf(conn);
   if (!w || !w.alive || w.role !== 'Loup-Garou' || !wolvesOpen || night.wolfFinal.has(w.name)) return;
   const t = findPlayer(String(data.target || ''));
-  if (!t || !t.alive || t === w) return;
+  if (!t || !t.alive || t === w || t.role === 'Loup-Garou') return;   // un loup ne peut pas viser un loup
   night.wolfVotes.set(w.name, t.name);
   broadcastWolfVotes();
   renderMJDashboard();
@@ -1176,11 +1266,97 @@ function handleWitchAction(conn, data) {
   scheduleCloseEyes();
 }
 
+// -------------------------------- RENARD --------------------------------
+// Il désigne UN joueur sur son téléphone (noms uniquement). Le MJ répond OUI / NON avec ses boutons ;
+// la réponse s'affiche sur le téléphone du Renard, et « Fermez les yeux » est lu quand il clique sur « J'ai vu, fermer ».
+let foxWaiting = new Set();      // Renards qui doivent encore désigner un joueur
+let foxChoices = new Map();      // nom du Renard -> nom du joueur désigné
+let foxAnswered = new Map();     // nom du Renard -> réponse donnée par le MJ (true = Loup détecté)
+let foxAcked = new Set();        // Renards qui ont refermé leur écran
+let foxQueuedAnswer = null;      // réponse donnée par le MJ avant que le Renard ait choisi
+
+function sendFoxTurn(f) {
+  if (foxAnswered.has(f.name)) {
+    sendTo(f, { type: 'foxAnswer', target: foxChoices.get(f.name), answer: foxAnswered.get(f.name) });
+    return;
+  }
+  sendTo(f, {
+    type: 'foxTurn',
+    targets: alivePlayers().filter((p) => p !== f).map((p) => p.name),
+    chosen: foxChoices.get(f.name) || null
+  });
+}
+
+function startFoxTurn() {
+  const foxes = alivePlayers().filter((p) => p.role === 'Renard');
+  if (!foxes.length) return;                 // pas de Renard en vie : tout reste à l'oral
+  foxQueuedAnswer = null;
+  foxes.forEach((f) => {
+    foxChoices.delete(f.name);
+    foxAnswered.delete(f.name);
+    foxAcked.delete(f.name);
+    foxWaiting.add(f.name);
+    if (f.connected) sendFoxTurn(f);
+    else showToast(`Le Renard (${f.name}) est déconnecté : le choix lui sera proposé à sa reconnexion.`, 'info');
+  });
+  renderMJDashboard();
+}
+
+function handleFoxChoice(conn, data) {
+  const f = senderOf(conn);
+  if (!f || !f.alive || f.role !== 'Renard' || !foxWaiting.has(f.name)) return;
+  const t = findPlayer(String(data.target || ''));
+  if (!t || !t.alive || t === f) { sendFoxTurn(f); return; }
+
+  foxWaiting.delete(f.name);                 // un seul joueur par tour
+  foxChoices.set(f.name, t.name);
+  sendTo(f, { type: 'foxAck', target: t.name });
+  showToast(`🦊 Le Renard (${f.name}) a désigné ${t.name} : répondez Oui ou Non avec les boutons du Renard.`, 'info');
+  if (foxQueuedAnswer !== null) deliverFoxAnswer(foxQueuedAnswer);   // le MJ avait déjà répondu
+  renderMJDashboard();
+}
+
+// Envoie la réponse du MJ aux Renards qui ont désigné un joueur ; retient la réponse pour ceux qui n'ont pas encore choisi
+function deliverFoxAnswer(isPositive) {
+  let sent = 0;
+  alivePlayers().filter((p) => p.role === 'Renard').forEach((f) => {
+    if (foxChoices.has(f.name) && !foxAnswered.has(f.name)) {
+      foxAnswered.set(f.name, !!isPositive);
+      sendFoxTurn(f);
+      sent++;
+    }
+  });
+  if (sent) foxQueuedAnswer = null;
+  else if (alivePlayers().some((p) => p.role === 'Renard' && foxWaiting.has(p.name))) foxQueuedAnswer = !!isPositive;
+  renderMJDashboard();
+  return sent;
+}
+
+// Le Renard a refermé la réponse : son tour est fini, « Fermez les yeux » est lu
+function handleFoxClosed(conn) {
+  const f = senderOf(conn);
+  if (!f || !foxAnswered.has(f.name) || foxAcked.has(f.name)) return;
+  foxAcked.add(f.name);
+  renderMJDashboard();
+  scheduleCloseEyes(0);
+}
+
 // ------------------------------- VOYANTE -------------------------------
 // Elle voit les noms des joueurs en vie (jamais leurs rôles) et en choisit UN par tour : son rôle lui est alors révélé.
 let seerWaiting = new Set();     // Voyantes qui doivent encore choisir
 let seerResults = new Map();     // nom de la Voyante -> { name, role } (résultat du tour en cours)
 let seerLog = null;              // dernière observation, affichée dans le tableau de bord du MJ
+
+let seerAcked = new Set();       // Voyantes qui ont refermé leur écran (« J'ai vu, fermer »)
+
+// La Voyante a refermé son résultat : son tour est fini, « Fermez les yeux » est lu
+function handleSeerClosed(conn) {
+  const seer = senderOf(conn);
+  if (!seer || !seerResults.has(seer.name) || seerAcked.has(seer.name)) return;
+  seerAcked.add(seer.name);
+  renderMJDashboard();
+  scheduleCloseEyes(0);
+}
 
 function sendSeerTurn(seer) {
   sendTo(seer, { type: 'seerTurn', targets: alivePlayers().filter((p) => p !== seer).map((p) => p.name) });
@@ -1191,6 +1367,7 @@ function startSeerTurn() {
   if (!seers.length) { showToast("Aucune Voyante en vie dans la partie.", 'info'); return; }
   seers.forEach((s) => {
     seerResults.delete(s.name);
+    seerAcked.delete(s.name);
     seerWaiting.add(s.name);
     if (s.connected) sendSeerTurn(s);
     else showToast(`La Voyante (${s.name}) est déconnectée : le choix lui sera proposé à sa reconnexion.`, 'info');
@@ -1210,7 +1387,6 @@ function handleSeerChoice(conn, data) {
   sendTo(seer, { type: 'seerResult', name: target.name, role: target.role });
   showToast(`🔮 La Voyante (${seer.name}) a observé ${target.name} : ${target.role}.`, 'info');
   renderMJDashboard();
-  scheduleCloseEyes();
 }
 
 // --------------------------- ÉLECTION DU MAIRE ---------------------------
@@ -1388,7 +1564,7 @@ function closeVillageVote(silent = false) {
 const EVENTS = {
   wolves: { video: 'Mort Loup.mp4',     namesAt: 'start', title: '🐺 Mort par les loups-garous', button: '🐺 Annoncer la mort (loups)' },
   poison: { video: 'Empoisoner.mp4',    namesAt: 'end',   title: '☠️ Mort par empoisonnement',   button: '☠️ Annoncer l\'empoisonnement' },
-  vote:   { video: 'Elimination 2.mp4', namesAt: 'end',   title: '🗳️ Élimination par le village', button: '🗳️ Annoncer l\'élimination' }
+  vote:   { video: 'Elimination 2.mp4', namesAt: 'end', stopScene: true,   title: '🗳️ Élimination par le village', button: '🗳️ Annoncer l\'élimination' }
 };
 
 function announceKillEvent(kind, opts = {}) {
@@ -1417,7 +1593,8 @@ function announceKillEvent(kind, opts = {}) {
   overlayMode = null;
   currentOverlayFile = null;
 
-  sendToProjector({ action: 'eventVideo', url: mediaUrl('video', cfg.video), deaths, namesAt: cfg.namesAt });
+  sendToProjector({ action: 'eventVideo', url: mediaUrl('video', cfg.video), deaths, namesAt: cfg.namesAt, stopScene: !!cfg.stopScene });
+  checkVictory('event');
   renderMJDashboard();
   showToast(deaths.map((d) => (d.love ? `💔 ${d.name} meurt de chagrin` : `💀 ${d.name}`)).join(' — '), 'info');
   return true;
@@ -1438,6 +1615,19 @@ function nameHtml(n) { return `<span class="nom-joueur">${escapeHtml(n)}</span>`
 function countsText(counts) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
   return entries.length ? entries.map(([n, c]) => `${nameHtml(n)} (${c})`).join(' · ') : 'aucun vote';
+}
+
+// État du Renard pour le MJ, avec la réponse attendue (le MJ répond lui-même avec ses boutons)
+function foxLine() {
+  const f = players.find((p) => p.role === 'Renard' && foxChoices.has(p.name));
+  if (f) {
+    const t = findPlayer(foxChoices.get(f.name));
+    const wolf = !!t && t.role === 'Loup-Garou';
+    const answered = foxAnswered.has(f.name);
+    return `a désigné ${nameHtml(foxChoices.get(f.name))} → réponse attendue : ${wolf ? '<strong>OUI</strong> (Loup détecté)' : '<strong>NON</strong> (aucun loup)'}`
+      + (answered ? ` — ✅ réponse donnée (${foxAnswered.get(f.name) ? 'Oui' : 'Non'})${foxAcked.has(f.name) ? ', vision refermée' : ''}` : ' — ⏳ en attente de votre réponse');
+  }
+  return foxWaiting.size ? 'choix en cours…' : 'en attente de son appel';
 }
 
 function renderAutomation() {
@@ -1466,12 +1656,14 @@ function renderAutomation() {
 
   el.innerHTML = `
     <h3 class="auto-title">⚙️ Automatisation de la partie</h3>
+    ${gameOver ? '<p class="game-over">🏆 Partie terminée : <strong>victoire du village</strong> (tous les Loups-Garous sont morts).</p>' : ''}
 
     <div class="auto-block">
       <p><strong>🔔 Tour en cours :</strong> ${currentTurnRole ? `${escapeHtml(currentTurnRole)} — ${players.filter((p) => p.alive && p.role === currentTurnRole).map((p) => nameHtml(p.name)).join(', ') || 'personne en vie'}` : 'aucun'}</p>
       <p><strong>💘 Amoureux :</strong> ${lovers.length === 2 ? lovers.map((l) => nameHtml(l.name)).join(' & ') + ' — si l\'un meurt, l\'autre meurt aussi.' : 'pas encore désignés (appel de Cupidon).'}</p>
       <p><strong>🐺 Loups :</strong> ${wolfStatus}</p>
       <p><strong>🧪 Sorcière :</strong> ${witchStatus}</p>
+      <p><strong>🦊 Renard :</strong> ${foxLine()}</p>
       <p><strong>🔮 Voyante :</strong> ${seerWaiting.size ? 'choix en cours…' : (seerLog ? `a observé <strong>${nameHtml(seerLog.target)}</strong> (${escapeHtml(seerLog.role)})` : 'en attente de son appel')}</p>
       <p><strong>👑 Maire :</strong> ${mayor ? nameHtml(mayor) + (successionPending ? ' (mort : successeur en cours de désignation)' : '') : 'pas encore élu'} — ${mayorStatus}</p>
       <p><strong>🗳️ Vote du village :</strong> ${voteStatus} <em>(la voix du Maire compte double)</em></p>

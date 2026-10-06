@@ -1,7 +1,10 @@
 /* Police Angel Wish pour les noms des joueurs (fichier Angel_wish.ttf à la racine du site) */
 @font-face {
   font-family: 'Angel Wish';
-  src: url('Angel_wish.ttf') format('truetype');
+  src: url('Angel_wish.ttf') format('truetype'),
+       url('Angel_Wish.ttf') format('truetype'),
+       url('angel_wish.ttf') format('truetype'),
+       url('angel-wish.ttf') format('truetype');
   font-weight: normal;
   font-style: normal;
   font-display: swap;
@@ -739,3 +742,27 @@ input[type="number"] {
 .chip { font-size: 1.15rem; }
 #welcome-title.nom-joueur { font-size: 2.3rem; }
 .pick-btn.nom-joueur, .thief-targets .btn.nom-joueur { font-size: 1.6rem; }
+
+/* --- Voyante qui consulte sa vision, fin de partie --- */
+.mj-table tr.turn-view td, .mj-table tr.turn-answer td { animation: turnPulse 1.6s ease-in-out infinite; }
+.game-over { margin: 0 0 12px; padding: 10px 12px; color: #fef3c7; background: rgba(120, 83, 4, 0.55); border: 1px solid #facc15; border-radius: 6px; }
+.gameover-banner {
+  margin: 12px auto 0;
+  max-width: 420px;
+  padding: 14px;
+  color: #fef3c7;
+  background: rgba(120, 83, 4, 0.6);
+  border: 2px solid #facc15;
+  border-radius: 6px;
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+@media (prefers-reduced-motion: reduce) {
+  .mj-table tr.turn-view td, .mj-table tr.turn-answer td { animation: none; }
+}
+
+/* Renard : réponse du Maître du Jeu sur son téléphone */
+.fox-answer { margin: 8px 0 14px; padding: 14px; border-radius: 6px; font-size: 1.3rem; font-weight: 700; line-height: 1.3; }
+.fox-answer.yes { color: #fecaca; background: rgba(127, 29, 29, 0.6); border: 2px solid #ef4444; }
+.fox-answer.no { color: #bbf7d0; background: rgba(20, 83, 45, 0.55); border: 2px solid #22c55e; }
+.mj-table tr.turn-answer .turn-badge { color: #fca5a5; }
