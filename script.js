@@ -1,4 +1,4 @@
-const VERSION_APP = "33";
+const VERSION_APP = "35";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -85,6 +85,9 @@ let roles = [];
 let calledOnce = new Set();
 let thiefOffers = new Map();
 let distributed = false;
+let afterAudio = null;         // son à enchaîner dès que la voix en cours est terminée
+let END_TURN_DELAY = 2500;     // délai (ms) entre la fin d'un tour et « Fermez les yeux »
+const CLOSE_EYES_AUDIO = 'Fermer les yeux.mp3';
 let currentTurnRole = null;   // rôle actuellement appelé (surbrillance du joueur dans le tableau de bord du MJ)
 const TURN_ROLE_BY_CALL = { voleur: 'Voleur', cupidon: 'Cupidon', voyante: 'Voyante', renard: 'Renard', loups: 'Loup-Garou', sorciere: 'Sorcière', chasseur: 'Chasseur' };
 let activeCallRoles = new Set();
@@ -129,7 +132,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=33', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=35', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -141,8 +144,8 @@ window.addEventListener('message', (event) => {
   if (data.action === 'projectorReady') {
     syncLobbyToProjector();
   } else if (data.action === 'eventEnded') {
-    // l'annonce de mort vient de se terminer : si le jour attendait, il se lève maintenant
-    if (dayAfterEvent) startDayScene();
+    // l'annonce de mort vient de se terminer : on passe à la suivante, puis au lever du jour
+    if (dayQueue) nextDayStep();
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
     if (currentOverlayFile && mediaUrl('video', currentOverlayFile) === data.url) {
@@ -212,6 +215,7 @@ function routePlayerMessage(conn, data) {
   else if (data.type === 'villageVote') handleVillageVote(conn, data);
   else if (data.type === 'seerChoice') handleSeerChoice(conn, data);
   else if (data.type === 'mayorVote') handleMayorVote(conn, data);
+  else if (data.type === 'mayorSuccessor') handleMayorSuccessor(conn, data);
 }
 
 function handlePlayerConnClose(conn) {
@@ -469,6 +473,7 @@ function togglePlayerStatus(index) {
   } else {
     setAlive(p, true);
     p.diedOfLove = false;
+    if (successionPending === p.name) cancelMayorSuccession();
     // correction d'erreur : l'amoureux mort uniquement de chagrin revient aussi
     const partner = p.inLove ? players.find((x) => x !== p && x.inLove) : null;
     if (partner && !partner.alive && partner.diedOfLove) {
@@ -527,46 +532,46 @@ function playNightPhase() {
   playAudioFile("Appel nuit V2.mp3");
 }
 
-// Victimes des loups pas encore annoncées (celles que la Sorcière n'a pas sauvées)
-function pendingWolfVictims() {
-  return [...selection.wolves].filter((n) => { const p = findPlayer(n); return p && p.alive; });
+// Joueurs (en vie) déjà désignés pour une annonce, pas encore annoncés : 'wolves' ou 'poison'
+function pendingNames(kind) {
+  return [...selection[kind]].filter((n) => { const p = findPlayer(n); return p && p.alive; });
 }
 
-let dayAfterEvent = false;   // vrai pendant l'annonce de la mort des loups : le jour se lèvera juste après
+let dayQueue = null;   // annonces restantes avant le lever du jour (null = aucune annonce en cours)
 
 function startDayScene() {
-  dayAfterEvent = false;
+  dayQueue = null;
   playScene(YT_ID_JOUR);
   openVillageVote();
   playAudioFile("Appel jour V2.mp3");
 }
 
-// « Le jour se lève » : s'il y a eu des morts causées par les loups, leur annonce (vidéo + noms) passe d'abord.
-function playDayPhase() {
-  currentTurnRole = null;
-  if (dayAfterEvent) { startDayScene(); return; }           // 2e clic : on n'attend plus la fin de l'annonce
-  if (pendingWolfVictims().length && projectorOpen()) {
-    dayAfterEvent = true;
-    if (announceKillEvent('wolves', { auto: true })) {
-      showToast("☀️ Annonce de la mort des loups en cours : le jour se lèvera juste après (recliquez pour passer directement au jour).", 'info');
-      return;
-    }
-    dayAfterEvent = false;
+// Enchaîne les annonces de mort une par une ; la scène de jour démarre quand la dernière est terminée
+function nextDayStep() {
+  while (dayQueue && dayQueue.length) {
+    const kind = dayQueue.shift();
+    if (pendingNames(kind).length && announceKillEvent(kind, { auto: true })) return;   // on attend « eventEnded »
   }
   startDayScene();
 }
 
-function presentCharacters() {
-  if (currentAudio) {
-    currentAudio.pause();
-    currentAudio.currentTime = 0;
+// « Le jour se lève » : s'il y a eu des morts par les loups, puis un empoisonnement par la Sorcière,
+// leurs annonces (vidéo + noms) sont lues AVANT le lever du jour.
+function playDayPhase() {
+  currentTurnRole = null;
+  if (dayQueue) { startDayScene(); return; }              // 2e clic : on n'attend plus les annonces
+  if (projectorOpen()) {
+    const kinds = ['wolves', 'poison'].filter((k) => pendingNames(k).length);
+    if (kinds.length) {
+      dayQueue = kinds;
+      showToast("☀️ Annonces de la nuit en cours : le jour se lèvera juste après (recliquez pour passer directement au jour).", 'info');
+      nextDayStep();
+      return;
+    }
   }
-  window.speechSynthesis.cancel();
-  playScene(YT_ID_PRESENTATION, false);
-  setProjectorVideoVolume(1.0, 300);
+  startDayScene();
 }
 
-// --- CONSIGNES & INTERVENTIONS ---
 function playCommand(cmd) {
   if (cmd === 'fermer_yeux') {
     playAudioFile("Fermer les yeux.mp3");
@@ -582,7 +587,8 @@ function playCommand(cmd) {
 
 function playRenardResponse(isPositive) {
   if (!isCenteredVideo("Renard.mp4")) playRoleVideo("Renard.mp4");
-  playAudioFile(isPositive ? "Appel Renard oui.mp3" : "Appel Renard non.mp3");
+  // fin du tour du Renard : après la réponse, « Fermez les yeux » est lu
+  playAudioFile(isPositive ? "Appel Renard oui.mp3" : "Appel Renard non.mp3", { then: CLOSE_EYES_AUDIO });
 }
 
 function playSorcierePotions(type) {
@@ -629,6 +635,20 @@ const FALLBACK_TEXTS = {
 function onAudioFinished() {
   setProjectorVideoVolume(1.0, 800);
   if (overlayMode === 'corner') stopRoleVideo();
+  const next = afterAudio;
+  afterAudio = null;
+  if (next) playAudioFile(next);          // enchaînement (ex. « Fermez les yeux » après la voix du Renard)
+}
+
+// Fin d'un tour de nuit (Voleur, Cupidon, Voyante, Loups, Sorcière) : « Fermez les yeux » est lu
+// automatiquement, après la voix en cours s'il y en a une.
+function scheduleCloseEyes() {
+  setTimeout(() => {
+    const speaking = window.speechSynthesis && window.speechSynthesis.speaking;
+    const busy = currentAudio && !currentAudio.paused && !currentAudio.ended;
+    if (busy || speaking) afterAudio = CLOSE_EYES_AUDIO;
+    else playAudioFile(CLOSE_EYES_AUDIO);
+  }, END_TURN_DELAY);
 }
 
 function audioCandidates(filename) {
@@ -668,7 +688,8 @@ function diagnoseAudio(url, filename) {
     .catch(() => showToast(base + "impossible de joindre Supabase (réseau ou CORS)."));
 }
 
-function playAudioFile(filename) {
+function playAudioFile(filename, opts = {}) {
+  afterAudio = opts.then || null;
   window.speechSynthesis.cancel();
   if (currentAudio) {
     currentAudio.pause();
@@ -722,7 +743,8 @@ function fallbackSpeech(filename) {
 }
 
 function stopAllMedia() {
-  dayAfterEvent = false;
+  dayQueue = null;
+  afterAudio = null;
   sendToProjector({ action: 'stop' });
   overlayMode = null;
   currentOverlayFile = null;
@@ -834,6 +856,7 @@ function handleThiefSteal(conn, data) {
     conn.send({ type: 'thiefDone' });
     showToast(`🕵️ ${thief.name} (Voleur) garde son rôle.`, 'info');
     renderMJDashboard();
+    scheduleCloseEyes();
     return;
   }
 
@@ -856,6 +879,7 @@ function handleThiefSteal(conn, data) {
 
   renderMJDashboard();
   showToast(`🕵️ ${thief.name} a volé « ${offer.role} » à ${holder.name}, qui devient Villageois.`, 'info');
+  scheduleCloseEyes();
 }
 
 const HOWL_FILES = ["Le hurlement du loup 1.mp3", "Le hurlement du loup 2.mp3", "Le hurlement du loup 3.mp3"];
@@ -903,8 +927,9 @@ function resetGameAutomation() {
   villageVote = { open: false, votes: new Map() };
   selection = { wolves: new Set(), poison: new Set(), vote: new Set(), mayor: new Set() };
   mayor = null;
+  successionPending = null;
   mayorVote = { open: false, votes: new Map() };
-  dayAfterEvent = false;
+  dayQueue = null;
   seerWaiting = new Set();
   seerResults = new Map();
   seerLog = null;
@@ -925,6 +950,15 @@ function aliveTally(votesMap) {
   votesMap.forEach((target, voter) => {
     const v = findPlayer(voter), t = findPlayer(target);
     if (v && v.alive && t && t.alive) counts[target] = (counts[target] || 0) + 1;
+  });
+  return counts;
+}
+// Vote du village : la voix du Maire (s'il est en vie) compte double
+function villageTally(votesMap) {
+  const counts = {};
+  votesMap.forEach((target, voter) => {
+    const v = findPlayer(voter), t = findPlayer(target);
+    if (v && v.alive && t && t.alive) counts[target] = (counts[target] || 0) + (voter === mayor ? 2 : 1);
   });
   return counts;
 }
@@ -957,6 +991,8 @@ function killPlayers(names) {
       }
     }
   });
+  const mayorP = mayor && deaths.some((d) => d.name === mayor) ? findPlayer(mayor) : null;
+  if (mayorP) startMayorSuccession(mayorP);
   return deaths;
 }
 
@@ -968,6 +1004,7 @@ function resyncPlayer(p) {
     const partner = players.find((x) => x !== p && x.inLove);
     sendTo(p, { type: 'lover', partner: partner ? partner.name : null });
   }
+  if (successionPending === p.name) sendSuccessionTurn(p);
   if (!p.alive) return;
   if (thiefOffers.has(p.name)) sendThiefTurn(p);
   if (cupidWaiting.has(p.name)) sendCupidTurn(p);
@@ -1008,6 +1045,7 @@ function handleCupidChoice(conn, data) {
   notifyLovers();
   renderMJDashboard();
   showToast(`💘 Cupidon (${cupid.name}) a uni ${pair[0].name} et ${pair[1].name}.`, 'info');
+  scheduleCloseEyes();
 }
 
 // ---------------------------- LOUPS-GAROUS ----------------------------
@@ -1078,6 +1116,7 @@ function closeWolfVote() {
     showToast("🐺 Aucun vote des loups cette nuit.", 'info');
   }
   renderMJDashboard();
+  scheduleCloseEyes();
 }
 
 // ------------------------------ SORCIÈRE ------------------------------
@@ -1134,6 +1173,7 @@ function handleWitchAction(conn, data) {
   sendTo(w, { type: 'witchDone' });
   showToast(done.length ? `🧪 La Sorcière ${done.join(' et ')}.` : "🧪 La Sorcière ne fait rien cette nuit.", 'info');
   renderMJDashboard();
+  scheduleCloseEyes();
 }
 
 // ------------------------------- VOYANTE -------------------------------
@@ -1170,6 +1210,7 @@ function handleSeerChoice(conn, data) {
   sendTo(seer, { type: 'seerResult', name: target.name, role: target.role });
   showToast(`🔮 La Voyante (${seer.name}) a observé ${target.name} : ${target.role}.`, 'info');
   renderMJDashboard();
+  scheduleCloseEyes();
 }
 
 // --------------------------- ÉLECTION DU MAIRE ---------------------------
@@ -1236,12 +1277,48 @@ function resolveMayorVote() {
   if (selection.mayor.size === 1) announceMayor();
 }
 
+
+// ---- Le Maire est mort : il choisit son successeur depuis son téléphone (noms des joueurs en vie, sans rôles) ----
+let successionPending = null;   // nom du Maire mort qui doit désigner son successeur
+
+function sendSuccessionTurn(p) {
+  sendTo(p, { type: 'mayorSuccessionTurn', targets: alivePlayers().map((x) => x.name) });
+}
+
+function startMayorSuccession(dead) {
+  if (!alivePlayers().length) return;
+  successionPending = dead.name;
+  sendSuccessionTurn(dead);
+  showToast(`👑 Le Maire ${dead.name} est mort : il choisit son successeur depuis son téléphone.`, 'info');
+}
+
+function cancelMayorSuccession() {
+  const p = successionPending ? findPlayer(successionPending) : null;
+  successionPending = null;
+  if (p) sendTo(p, { type: 'mayorSuccessionDone' });
+}
+
+function handleMayorSuccessor(conn, data) {
+  const dead = senderOf(conn);
+  if (!dead || dead.alive || successionPending !== dead.name) return;
+  const t = findPlayer(String(data.target || ''));
+  if (!t || !t.alive) { sendSuccessionTurn(dead); return; }
+  successionPending = null;
+  mayor = t.name;
+  selection.mayor = new Set();
+  sendTo(dead, { type: 'mayorSuccessionDone' });
+  const shown = sendToProjector({ action: 'announceMayor', name: t.name });
+  showToast(`👑 ${dead.name} désigne ${t.name} comme nouveau Maire${shown ? '' : ' (écran secondaire fermé)'}.`, 'info');
+  renderMJDashboard();
+}
+
 // Proclame le Maire : couronne + nom sur l'écran secondaire
 function announceMayor() {
   const name = [...selection.mayor].find((n) => { const p = findPlayer(n); return p && p.alive; });
   if (!name) { showToast("Sélectionnez d'abord le joueur élu Maire.", 'info'); return; }
   mayor = name;
   selection.mayor = new Set();
+  if (successionPending) cancelMayorSuccession();   // un Maire est désigné : plus de succession en attente
   const shown = sendToProjector({ action: 'announceMayor', name });
   showToast(shown ? `👑 ${name} est élu Maire du village !` : `👑 ${name} est élu Maire (écran secondaire fermé : rien n'est affiché).`, 'info');
   renderMJDashboard();
@@ -1292,7 +1369,7 @@ function closeVillageVote(silent = false) {
   villageVote.open = false;
   players.forEach((p) => sendTo(p, { type: 'voteClose' }));
   if (!silent) {
-    const { names, max } = topOf(aliveTally(villageVote.votes));
+    const { names, max } = topOf(villageTally(villageVote.votes));
     if (names.length === 1) {
       selection.vote = new Set([names[0]]);
       showToast(`🗳️ ${names[0]} a le plus de votes (${max}).`, 'info');
@@ -1355,9 +1432,12 @@ function chipsHtml(kind) {
   ).join('');
 }
 
+// nom de joueur (police Angel Wish)
+function nameHtml(n) { return `<span class="nom-joueur">${escapeHtml(n)}</span>`; }
+
 function countsText(counts) {
   const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
-  return entries.length ? entries.map(([n, c]) => `${escapeHtml(n)} (${c})`).join(' · ') : 'aucun vote';
+  return entries.length ? entries.map(([n, c]) => `${nameHtml(n)} (${c})`).join(' · ') : 'aucun vote';
 }
 
 function renderAutomation() {
@@ -1366,12 +1446,12 @@ function renderAutomation() {
 
   const wolves = wolvesAlive();
   const wolfCounts = aliveTally(night.wolfVotes);
-  const voteCounts = aliveTally(villageVote.votes);
+  const voteCounts = villageTally(villageVote.votes);
   const lovers = players.filter((p) => p.inLove);
 
   const wolfStatus = wolvesOpen
     ? `🟢 vote ouvert — ${night.wolfFinal.size}/${wolves.length} validé(s) — ${countsText(wolfCounts)} <button type="button" class="auto-btn" data-act="closeWolves">Clore le vote</button>`
-    : (night.wolfVictim ? `🔒 victime désignée : <strong>${escapeHtml(night.wolfVictim)}</strong>${night.saved ? ' (sauvée par la Sorcière)' : ''}` : '⚪ en attente de l\'appel des loups');
+    : (night.wolfVictim ? `🔒 victime désignée : <strong>${nameHtml(night.wolfVictim)}</strong>${night.saved ? ' (sauvée par la Sorcière)' : ''}` : '⚪ en attente de l\'appel des loups');
 
   const mayorStatus = mayorVote.open
     ? `🟢 élection ouverte — ${mayorVote.votes.size}/${alivePlayers().length} ont voté — ${countsText(aliveTally(mayorVote.votes))} <button type="button" class="auto-btn" data-act="closeMayor">Clore l'élection</button>`
@@ -1382,19 +1462,19 @@ function renderAutomation() {
     : `⚪ fermé — il s'ouvre quand le jour se lève <button type="button" class="auto-btn" data-act="openVote">Ouvrir le vote</button>`;
 
   const witchStatus = `Potion de vie : ${witchState.lifeUsed ? '❌ utilisée' : '✅ disponible'} · Potion de mort : ${witchState.deathUsed ? '❌ utilisée' : '✅ disponible'}`
-    + (night.poisoned ? ` — empoisonné cette nuit : <strong>${escapeHtml(night.poisoned)}</strong>` : '');
+    + (night.poisoned ? ` — empoisonné cette nuit : <strong>${nameHtml(night.poisoned)}</strong>` : '');
 
   el.innerHTML = `
     <h3 class="auto-title">⚙️ Automatisation de la partie</h3>
 
     <div class="auto-block">
-      <p><strong>🔔 Tour en cours :</strong> ${currentTurnRole ? `${escapeHtml(currentTurnRole)} — ${players.filter((p) => p.alive && p.role === currentTurnRole).map((p) => escapeHtml(p.name)).join(', ') || 'personne en vie'}` : 'aucun'}</p>
-      <p><strong>💘 Amoureux :</strong> ${lovers.length === 2 ? lovers.map((l) => escapeHtml(l.name)).join(' & ') + ' — si l\'un meurt, l\'autre meurt aussi.' : 'pas encore désignés (appel de Cupidon).'}</p>
+      <p><strong>🔔 Tour en cours :</strong> ${currentTurnRole ? `${escapeHtml(currentTurnRole)} — ${players.filter((p) => p.alive && p.role === currentTurnRole).map((p) => nameHtml(p.name)).join(', ') || 'personne en vie'}` : 'aucun'}</p>
+      <p><strong>💘 Amoureux :</strong> ${lovers.length === 2 ? lovers.map((l) => nameHtml(l.name)).join(' & ') + ' — si l\'un meurt, l\'autre meurt aussi.' : 'pas encore désignés (appel de Cupidon).'}</p>
       <p><strong>🐺 Loups :</strong> ${wolfStatus}</p>
       <p><strong>🧪 Sorcière :</strong> ${witchStatus}</p>
-      <p><strong>🔮 Voyante :</strong> ${seerWaiting.size ? 'choix en cours…' : (seerLog ? `a observé <strong>${escapeHtml(seerLog.target)}</strong> (${escapeHtml(seerLog.role)})` : 'en attente de son appel')}</p>
-      <p><strong>👑 Maire :</strong> ${mayor ? escapeHtml(mayor) : 'pas encore élu'} — ${mayorStatus}</p>
-      <p><strong>🗳️ Vote du village :</strong> ${voteStatus}</p>
+      <p><strong>🔮 Voyante :</strong> ${seerWaiting.size ? 'choix en cours…' : (seerLog ? `a observé <strong>${nameHtml(seerLog.target)}</strong> (${escapeHtml(seerLog.role)})` : 'en attente de son appel')}</p>
+      <p><strong>👑 Maire :</strong> ${mayor ? nameHtml(mayor) + (successionPending ? ' (mort : successeur en cours de désignation)' : '') : 'pas encore élu'} — ${mayorStatus}</p>
+      <p><strong>🗳️ Vote du village :</strong> ${voteStatus} <em>(la voix du Maire compte double)</em></p>
       <label class="auto-toggle"><input type="checkbox" data-act="toggleAutoVote" ${autoVoteResolve ? 'checked' : ''}> Résoudre automatiquement dès que tout le monde a voté (élimination avec vidéo, élection du Maire)</label>
     </div>
 

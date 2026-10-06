@@ -223,6 +223,10 @@ function connect(room, name, token, isAuto) {
         mayorState.my = data.target;
         mayorState.picked = data.target;
         renderMayorList();
+      } else if (data.type === 'mayorSuccessionTurn') {
+        showSuccessionPanel(data.targets || []);
+      } else if (data.type === 'mayorSuccessionDone') {
+        hidePanel('succession-panel');
       } else if (data.type === 'mayorClose') {
         hidePanel('mayor-panel');
       } else if (data.type === 'seerTurn') {
@@ -697,4 +701,34 @@ function renderMayorList() {
 function mayorConfirm() {
   if (!conn || !conn.open || !mayorState.picked) return;
   conn.send({ type: 'mayorVote', target: mayorState.picked });
+}
+
+// --- Le Maire est mort : il choisit son successeur (noms des joueurs en vie, sans rôles) ---
+let successionState = { targets: [], picked: null };
+
+function showSuccessionPanel(targets) {
+  successionState = { targets, picked: null };
+  renderSuccessionList();
+  showPanel('succession-panel');
+}
+
+function renderSuccessionList() {
+  const list = document.getElementById('succession-list');
+  list.innerHTML = '';
+  successionState.targets.forEach((name) => {
+    list.appendChild(pickButton(name, {
+      selected: successionState.picked === name,
+      onClick: () => { successionState.picked = name; renderSuccessionList(); }
+    }));
+  });
+  const btn = document.getElementById('succession-confirm');
+  btn.disabled = !successionState.picked;
+  btn.textContent = successionState.picked ? `👑 Désigner ${successionState.picked}` : '👑 Désigner mon successeur';
+}
+
+function successionConfirm() {
+  if (!conn || !conn.open || !successionState.picked) return;
+  if (!confirm(`Transmettre le rôle de Maire à ${successionState.picked} ?`)) return;
+  document.querySelectorAll('#succession-panel button').forEach((b) => { b.disabled = true; });
+  conn.send({ type: 'mayorSuccessor', target: successionState.picked });
 }

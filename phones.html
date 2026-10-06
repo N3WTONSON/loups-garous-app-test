@@ -186,6 +186,9 @@
           send({ type: 'witchAction', save, poison }, d);
           break;
         }
+        case 'mayorSuccessionTurn':
+          if (msg.targets.length) send({ type: 'mayorSuccessor', target: rnd(msg.targets) }, d);
+          break;
         case 'mayorTurn':
           if (!msg.myVote && msg.targets.length) send({ type: 'mayorVote', target: rnd(msg.targets) }, d);
           break;

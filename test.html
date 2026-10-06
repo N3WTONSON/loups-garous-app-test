@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>🧪 Loup-Garou - Régie (MODE TEST)</title>
-  <link rel="stylesheet" href="style.css?v=33">
+  <link rel="stylesheet" href="style.css?v=35">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -141,14 +141,6 @@
           <button class="btn btn-night btn-large" onclick="distributeRolesNetwork()">🔀 Distribuer les Rôles aux Joueurs</button>
         </section>
 
-        <!-- Régie Ambiance : Phases de Jeu -->
-        <section class="card">
-          <h2 class="titre-wolf">🌙 Phases du Jeu</h2>
-          <div class="button-grid">
-            <button class="btn btn-night" onclick="playNightPhase()">🌌 Nuit Tombante</button>
-            <button class="btn btn-day" onclick="playDayPhase()">☀️ Le Jour Se Lève</button>
-          </div>
-        </section>
 
         <!-- Tableau de Bord Récapitulatif du MJ -->
 		<section class="card" id="mj-dashboard" style="display: none;">
@@ -217,6 +209,15 @@
           </div>
         </section>
 
+        <!-- Régie Ambiance : Phases de Jeu -->
+        <section class="card">
+          <h2 class="titre-wolf">🌙 Phases du Jeu</h2>
+          <div class="button-grid">
+            <button class="btn btn-night" onclick="playNightPhase()">🌌 Nuit Tombante</button>
+            <button class="btn btn-day" onclick="playDayPhase()">☀️ Le Jour Se Lève</button>
+          </div>
+        </section>
+
         <!-- Appels des Personnages -->
         <section class="card">
           <h2 class="titre-wolf">🎭 Appels des Personnages</h2>
@@ -272,7 +273,7 @@
         </section>
 
   </main>
-  <p id="app-version" class="hint" style="text-align:center;">Version 33 · MODE TEST</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 35 · MODE TEST</p>
 
   <script>
     (function () {
@@ -324,7 +325,7 @@
     });
   </script>
   <script>window.LG_TEST_MODE = true;</script>
-  <script src="script.js?v=33"></script>
-  <script src="test-tools.js?v=33"></script>
+  <script src="script.js?v=35"></script>
+  <script src="test-tools.js?v=35"></script>
 </body>
 </html>

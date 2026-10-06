@@ -29,10 +29,15 @@
       position: relative;
     }
 
+    /* Le lecteur dépasse de l'écran en haut et en bas : le titre et les barres de YouTube restent hors champ.
+       La vidéo (16:9) reste centrée et occupe exactement l'écran. */
     #player {
+      position: fixed;
+      top: -12vh; left: 0;
       width: 100%;
-      height: 100%;
+      height: 124vh;
       pointer-events: none;
+      border: 0;
     }
 
     #overlay-video {
@@ -48,15 +53,13 @@
       object-fit: cover;
     }
 
-    /* Appel de personnage : vidéo centrée au format 1728x918p, 50 % de la largeur */
+    /* Appel de personnage : vidéo centrée, 50 % de la largeur, cadrage automatique selon le format de la vidéo */
     #overlay-video.center {
       top: 50%; left: 50%; right: auto;
       transform: translate(-50%, -50%);
-      width: 50%; height: auto;
-      aspect-ratio: 1728 / 918;
+      width: 50%; height: auto;        /* cadrage automatique : la taille s'ajuste au format de chaque vidéo */
       max-height: 90%;
       box-sizing: border-box;
-      background: #000;
       object-fit: contain;
     }
 
@@ -214,23 +217,13 @@
       right: 2vmin; bottom: 2vmin;
       z-index: 25;
       display: none;
-      flex-direction: column;
-      align-items: center;
-      gap: 0.8vmin;
-      padding: 1vmin;
+      padding: 0.6vmin;
       background: rgba(255, 255, 255, 0.96);
-      border: 0.4vmin solid #7f1d1d;
-      border-radius: 1vmin;
-      box-shadow: 0 0.6vmin 2vmin rgba(0, 0, 0, 0.8);
+      border: 0.3vmin solid #7f1d1d;
+      border-radius: 0.8vmin;
+      box-shadow: 0 0.5vmin 1.5vmin rgba(0, 0, 0, 0.8);
     }
     #mini-qr .mini-qr-code { line-height: 0; }
-    #mini-qr .mini-qr-label {
-      font-family: 'Segoe UI', Tahoma, sans-serif;
-      font-size: 1.5vmin;
-      font-weight: 700;
-      color: #450a0a;
-      text-align: center;
-    }
 
     /* Vidéos d'annonce (loups, poison, vote) : plein écran, sans recadrage */
     #event-video {
@@ -272,30 +265,11 @@
       animation: deathNameIn 0.45s ease-out both;
     }
     .death-sub { margin-top: 1.5vh; font-size: 3.4vh; color: #fca5a5; text-shadow: 0 0.3vh 0.8vh #000; }
-    .death-claws {
-      position: absolute;
-      left: -2%; top: -12%;
-      width: 104%; height: 124%;
-      pointer-events: none;
-      overflow: visible;
-      filter: drop-shadow(0 0.5vh 1vh rgba(0, 0, 0, 0.9));
-    }
-    .claw {
-      transform-box: fill-box;
-      transform-origin: 50% 0;
-      transform: scaleY(0);
-      animation: clawIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
-    }
-    .claw.c1 { animation-delay: 0.35s; }
-    .claw.c2 { animation-delay: 0.50s; }
-    .claw.c3 { animation-delay: 0.65s; }
-    @keyframes clawIn { to { transform: scaleY(1); } }
     @keyframes deathNameIn {
       from { opacity: 0; transform: scale(1.15); filter: blur(1vh); }
       to   { opacity: 1; transform: none; filter: none; }
     }
     @media (prefers-reduced-motion: reduce) {
-      .claw { animation: none; transform: scaleY(1); }
       .death-name { animation: none; }
     }
 
@@ -386,19 +360,10 @@
   <!-- QR code permanent (reconnexion en cours de partie) -->
   <div id="mini-qr">
     <div id="mini-qr-code" class="mini-qr-code"></div>
-    <div class="mini-qr-label">Retrouve ta place<br>en scannant</div>
   </div>
 
   <!-- Vidéos d'annonce + noms des joueurs -->
   <video id="event-video" playsinline></video>
-  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
-    <defs>
-      <linearGradient id="deathClaw" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stop-color="#ef4444"/>
-        <stop offset="1" stop-color="#7f1d1d"/>
-      </linearGradient>
-    </defs>
-  </svg>
   <div id="death-overlay"><div id="death-list"></div></div>
   <div id="mayor-overlay">
     <div class="mayor-crown">👑</div>
@@ -411,7 +376,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 33');
+    console.info('Projecteur - version 35');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -441,10 +406,9 @@
       if (mode === 'center') {
         imp('top', '50%'); imp('left', '50%'); imp('right', 'auto');
         imp('transform', 'translate(-50%, -50%)');
-        imp('width', '50%'); imp('height', 'auto');
-        imp('aspect-ratio', '1728 / 918');
+        imp('width', '50%'); imp('height', 'auto');      // ajusté précisément dès que le format de la vidéo est connu
         imp('max-height', '90%'); imp('box-sizing', 'border-box');
-        imp('background', '#000'); imp('object-fit', 'contain');
+        imp('object-fit', 'contain');
       } else if (mode === 'full') {
         imp('top', '0'); imp('left', '0'); imp('right', '0'); imp('bottom', '0');
         imp('transform', 'none');
@@ -462,7 +426,30 @@
       if (window.opener) window.opener.postMessage({ action: 'overlayEnded', url }, '*');
     });
 
+    // Cadrage automatique : 50 % de la largeur de l'écran, hauteur déduite du format de la vidéo (jamais de bandes
+    // noires ni de déformation) ; si la vidéo est trop haute, on la réduit pour qu'elle tienne dans 90 % de la hauteur.
+    let overlayShowTimer = null;
+    function fitCenterOverlay() {
+      if (!overlayVideo.classList.contains('center')) return;
+      const vw = overlayVideo.videoWidth, vh = overlayVideo.videoHeight;
+      if (!vw || !vh) return;
+      const ratio = vw / vh;
+      let w = window.innerWidth * 0.5;
+      let h = w / ratio;
+      const maxH = window.innerHeight * 0.9;
+      if (h > maxH) { h = maxH; w = h * ratio; }
+      overlayVideo.style.setProperty('width', w + 'px', 'important');
+      overlayVideo.style.setProperty('height', h + 'px', 'important');
+    }
+    overlayVideo.addEventListener('loadedmetadata', () => {
+      fitCenterOverlay();
+      overlayVideo.style.visibility = 'visible';
+    });
+    window.addEventListener('resize', fitCenterOverlay);
+
     function hideOverlay() {
+      clearTimeout(overlayShowTimer);
+      overlayVideo.style.visibility = '';
       overlayVideo.pause();
       overlayVideo.style.display = 'none';
       setOverlayMode(null);
@@ -534,12 +521,6 @@
     let eventActive = false;
     let eventTimer = null;
     const eventVideo = document.getElementById('event-video');
-    const CLAWS_SVG =
-      '<svg class="death-claws" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' +
-      '<polygon class="claw c1" points="12,-8 22,-8 50,108 46,108" fill="url(#deathClaw)"/>' +
-      '<polygon class="claw c2" points="38,-8 48,-8 76,108 72,108" fill="url(#deathClaw)"/>' +
-      '<polygon class="claw c3" points="64,-8 74,-8 102,108 98,108" fill="url(#deathClaw)"/></svg>';
-
     function hideDeaths() {
       const overlay = document.getElementById('death-overlay');
       clearTimeout(deathTimer);
@@ -567,7 +548,6 @@
           sub.textContent = '💔 ne survit pas à la perte de son amoureux(se)';
           item.appendChild(sub);
         }
-        item.insertAdjacentHTML('beforeend', CLAWS_SVG);
         list.appendChild(item);
       });
       overlay.classList.toggle('over-video', !!opts.overVideo);
@@ -647,9 +627,11 @@
       if (!url || typeof QRCode === 'undefined') return;
       const box = document.getElementById('mini-qr');
       const target = document.getElementById('mini-qr-code');
-      const size = Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.12);
+      // petit QR code (8 % de la plus petite dimension de l'écran) ; correction d'erreur « L » = modules plus gros, donc lisible malgré la petite taille
+      const size = Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.08);
       target.innerHTML = '';
-      new QRCode(target, { text: url, width: size, height: size });
+      const level = (QRCode.CorrectLevel && QRCode.CorrectLevel.L !== undefined) ? QRCode.CorrectLevel.L : undefined;
+      new QRCode(target, { text: url, width: size, height: size, correctLevel: level });
       box.style.display = 'flex';
       miniQrUrl = url;
     }
@@ -713,6 +695,10 @@
         case 'playOverlayVideo':
           hideWaitingScreen();
           setOverlayMode(data.mode);
+          // vidéo centrée : on l'affiche une fois son format connu, pour éviter un saut de taille visible
+          overlayVideo.style.visibility = data.mode === 'center' ? 'hidden' : 'visible';
+          clearTimeout(overlayShowTimer);
+          overlayShowTimer = setTimeout(() => { overlayVideo.style.visibility = 'visible'; }, 1500);
           overlayVideo.src = data.url;
           overlayVideo.loop = data.loop !== false;   // false : lue une seule fois (ex. Maire)
           overlayVideo.style.display = 'block';

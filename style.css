@@ -1,3 +1,12 @@
+/* Police Angel Wish pour les noms des joueurs (fichier Angel_wish.ttf à la racine du site) */
+@font-face {
+  font-family: 'Angel Wish';
+  src: url('Angel_wish.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* Police Wolf Brothers (fichier wolfbrothers.ttf à la racine du site) */
 @font-face {
   font-family: 'Wolf Brothers';
@@ -719,3 +728,14 @@ input[type="number"] {
 /* Interrupteur d'élimination automatique */
 .auto-toggle { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 2px; font-size: 0.85rem; line-height: 1.35; cursor: pointer; color: #fecaca; }
 .auto-toggle input { margin-top: 3px; accent-color: #dc2626; cursor: pointer; }
+
+/* --- Noms des joueurs : police Angel Wish (régie du MJ et téléphones) --- */
+.nom-joueur, .chip {
+  font-family: 'Angel Wish', 'Wolf Brothers', 'Segoe UI', sans-serif;
+  letter-spacing: 0.5px;
+}
+.nom-joueur { font-size: 1.3em; }
+.tag-list .nom-joueur, .mj-table .nom-joueur { font-size: 1.45em; }
+.chip { font-size: 1.15rem; }
+#welcome-title.nom-joueur { font-size: 2.3rem; }
+.pick-btn.nom-joueur, .thief-targets .btn.nom-joueur { font-size: 1.6rem; }
