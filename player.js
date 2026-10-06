@@ -213,9 +213,14 @@ function connect(room, name, token, isAuto) {
         showVotePanel(data);
       } else if (data.type === 'voteAck') {
         voteState.my = data.target;
+        voteState.picked = data.target;
         renderVoteList();
       } else if (data.type === 'voteClose') {
         hidePanel('vote-panel');
+      } else if (data.type === 'seerTurn') {
+        showSeerPanel(data.targets || []);
+      } else if (data.type === 'seerResult') {
+        showSeerResult(data.name, data.role);
       }
     });
 
@@ -398,7 +403,7 @@ function setAliveUI(alive) {
   const banner = document.getElementById('dead-banner');
   if (banner) banner.style.display = alive ? 'none' : 'block';
   if (!alive) {
-    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel'].forEach(hidePanel);
+    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel'].forEach(hidePanel);
   }
 }
 
@@ -498,12 +503,18 @@ function showWitchPanel(data) {
   document.getElementById('witch-poison').style.display = witchState.canPoison ? 'block' : 'none';
   document.getElementById('witch-empty').style.display = (!witchState.canSave && !witchState.canPoison) ? 'block' : 'none';
 
+  const err = document.getElementById('witch-error');
+  err.textContent = data.error || '';
+  err.style.display = data.error ? 'block' : 'none';
+
   renderWitch();
   showPanel('witch-panel');
 }
 
+// Une seule potion par tour : choisir l'une désactive l'autre
 function renderWitch() {
   const saveBtn = document.getElementById('witch-save-btn');
+  saveBtn.disabled = !!witchState.poison;
   saveBtn.textContent = witchState.save
     ? `✅ Potion de vie sur ${witchState.victim} (toucher pour annuler)`
     : `🧪💚 Sauver ${witchState.victim || ''}`;
@@ -514,24 +525,33 @@ function renderWitch() {
     witchState.targets.forEach((name) => {
       list.appendChild(pickButton(name, {
         selected: witchState.poison === name,
+        disabled: witchState.save,
         onClick: () => {
+          if (witchState.save) return;
           witchState.poison = witchState.poison === name ? null : name;
           renderWitch();
         }
       }));
     });
   }
-  document.getElementById('witch-confirm').textContent =
-    (witchState.save || witchState.poison) ? 'Valider' : 'Ne rien faire';
+
+  document.getElementById('witch-hint').style.display = (witchState.canSave && witchState.canPoison) ? 'block' : 'none';
+  const confirmBtn = document.getElementById('witch-confirm');
+  confirmBtn.disabled = false;     // réactivé à chaque tour (il est verrouillé après l'envoi)
+  confirmBtn.textContent = (witchState.save || witchState.poison)
+    ? 'Valider'
+    : ((!witchState.canSave && !witchState.canPoison) ? 'Fermer' : 'Ne rien faire');
 }
 
 function witchToggleSave() {
+  if (witchState.poison) return;
   witchState.save = !witchState.save;
   renderWitch();
 }
 
 function witchConfirm() {
   if (!conn || !conn.open) return;
+  if (witchState.save && witchState.poison) return;   // jamais les deux potions en même temps
   const parts = [];
   if (witchState.save) parts.push(`sauver ${witchState.victim}`);
   if (witchState.poison) parts.push(`empoisonner ${witchState.poison}`);
@@ -541,29 +561,92 @@ function witchConfirm() {
 }
 
 // --- Vote du village ---
-let voteState = { targets: [], my: null };
+let voteState = { targets: [], my: null, picked: null };
 
 function showVotePanel(data) {
-  voteState = { targets: data.targets || [], my: data.myVote || null };
+  hidePanel('seer-panel');   // au lever du jour, l'écran de la Voyante se ferme
+  voteState = { targets: data.targets || [], my: data.myVote || null, picked: data.myVote || null };
   renderVoteList();
   showPanel('vote-panel');
 }
 
+// On choisit un nom, puis on appuie sur « Voter ». Le vote reste modifiable tant qu'il est ouvert.
 function renderVoteList() {
   const list = document.getElementById('vote-list');
   list.innerHTML = '';
   voteState.targets.forEach((name) => {
     list.appendChild(pickButton(name, {
-      selected: voteState.my === name,
-      onClick: () => {
-        if (!conn || !conn.open) return;
-        voteState.my = name;
-        conn.send({ type: 'villageVote', target: name });
-        renderVoteList();
-      }
+      selected: voteState.picked === name,
+      onClick: () => { voteState.picked = name; renderVoteList(); }
     }));
   });
+
+  const btn = document.getElementById('vote-confirm');
+  if (!voteState.picked) {
+    btn.disabled = true;
+    btn.textContent = '🗳️ Voter';
+  } else if (voteState.my && voteState.picked === voteState.my) {
+    btn.disabled = true;
+    btn.textContent = `✅ Vote enregistré : ${voteState.my}`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = voteState.my ? `🗳️ Changer mon vote pour ${voteState.picked}` : `🗳️ Voter pour ${voteState.picked}`;
+  }
   document.getElementById('vote-info').textContent = voteState.my
     ? `Ton vote : ${voteState.my}. Tu peux le changer tant que le vote est ouvert.`
-    : "Qui veux-tu éliminer ? Tu peux changer ton vote tant qu'il est ouvert.";
+    : "Choisis le joueur à éliminer, puis appuie sur « Voter ».";
+}
+
+function voteConfirm() {
+  if (!conn || !conn.open || !voteState.picked) return;
+  conn.send({ type: 'villageVote', target: voteState.picked });
+}
+
+// --- Voyante : choisir UN joueur (noms uniquement), puis découvrir son rôle ---
+let seerState = { targets: [], picked: null };
+
+function showSeerPanel(targets) {
+  seerState = { targets, picked: null };
+  document.getElementById('seer-choose').style.display = 'block';
+  document.getElementById('seer-result').style.display = 'none';
+  renderSeerList();
+  showPanel('seer-panel');
+}
+
+function renderSeerList() {
+  const list = document.getElementById('seer-list');
+  list.innerHTML = '';
+  seerState.targets.forEach((name) => {
+    list.appendChild(pickButton(name, {
+      selected: seerState.picked === name,
+      onClick: () => { seerState.picked = name; renderSeerList(); }
+    }));
+  });
+  document.getElementById('seer-confirm').disabled = !seerState.picked;
+}
+
+function seerConfirm() {
+  if (!conn || !conn.open || !seerState.picked) return;
+  if (!confirm(`Découvrir le rôle de ${seerState.picked} ? Tu ne peux observer qu'un seul joueur.`)) return;
+  document.querySelectorAll('#seer-choose button').forEach((b) => { b.disabled = true; });
+  conn.send({ type: 'seerChoice', target: seerState.picked });
+}
+
+function showSeerResult(name, role) {
+  const data = roleData[role] || { image: null, description: `🎭 <strong>${escapeText(role)}</strong>` };
+  document.getElementById('seer-choose').style.display = 'none';
+  document.getElementById('seer-result').style.display = 'block';
+  document.getElementById('seer-result-text').textContent = `${name} est…`;
+  document.getElementById('seer-result-role').textContent = role;
+  document.getElementById('seer-result-desc').innerHTML = data.description;
+  const img = document.getElementById('seer-result-img');
+  if (data.image) {
+    img.style.display = '';
+    img.onerror = () => { img.style.display = 'none'; };
+    img.src = mediaUrl('images', data.image);
+    img.alt = role;
+  } else {
+    img.style.display = 'none';
+  }
+  showPanel('seer-panel');
 }

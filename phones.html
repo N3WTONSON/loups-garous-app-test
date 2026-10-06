@@ -179,11 +179,16 @@
         }
         case 'wolfDone': packTarget = null; break;
         case 'witchTurn': {
-          const save = !!msg.canSave && Math.random() < 0.5;
-          const poison = (msg.canPoison && msg.targets.length && Math.random() < 0.4) ? rnd(msg.targets) : null;
+          // une seule potion par tour : sauver, OU empoisonner, OU rien
+          const roll = Math.random();
+          const save = !!msg.canSave && roll < 0.5;
+          const poison = (!save && msg.canPoison && msg.targets.length && roll >= 0.5 && roll < 0.8) ? rnd(msg.targets) : null;
           send({ type: 'witchAction', save, poison }, d);
           break;
         }
+        case 'seerTurn':
+          if (msg.targets.length) send({ type: 'seerChoice', target: rnd(msg.targets) }, d);
+          break;
         case 'voteTurn':
           if (!msg.myVote && msg.targets.length) send({ type: 'villageVote', target: rnd(msg.targets) }, d);
           break;

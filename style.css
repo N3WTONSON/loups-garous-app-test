@@ -685,3 +685,37 @@ input[type="number"] {
   border: 1px solid rgba(153, 27, 27, 0.6);
   border-radius: 4px;
 }
+
+/* Voyante : résultat de l'observation */
+.seer-card { display: flex; flex-direction: column; align-items: center; gap: 8px; margin: 10px 0 14px; }
+.seer-card img { width: 100%; max-width: 200px; border-radius: 10px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6); }
+.seer-card h4 { margin: 0; font-family: 'Wolf Brothers', 'Segoe UI', sans-serif; font-weight: normal; font-size: 1.8rem; letter-spacing: 1px; color: #f4dcdc; }
+.seer-card p { margin: 0; font-size: 0.85rem; line-height: 1.4; color: #cbd5e1; }
+
+/* --- Tableau de bord du MJ : joueur dont c'est le tour (nuit) --- */
+.mj-table tr.turn td {
+  background: rgba(250, 204, 21, 0.16);
+  border-bottom-color: rgba(250, 204, 21, 0.55);
+}
+.mj-table tr.turn td:first-child { box-shadow: inset 4px 0 0 #facc15; }
+.mj-table tr.turn-wait td { animation: turnPulse 1.6s ease-in-out infinite; }
+.mj-table tr.turn .nom-joueur { color: #fde68a; text-shadow: 0 0 10px rgba(250, 204, 21, 0.7); }
+.turn-badge {
+  display: block;
+  margin-top: 3px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fde68a;
+}
+.mj-table tr.turn-done .turn-badge { color: #86efac; }
+@keyframes turnPulse {
+  0%, 100% { background: rgba(250, 204, 21, 0.10); }
+  50%      { background: rgba(250, 204, 21, 0.30); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .mj-table tr.turn-wait td { animation: none; }
+}
+
+/* Interrupteur d'élimination automatique */
+.auto-toggle { display: flex; align-items: flex-start; gap: 8px; margin: 8px 0 2px; font-size: 0.85rem; line-height: 1.35; cursor: pointer; color: #fecaca; }
+.auto-toggle input { margin-top: 3px; accent-color: #dc2626; cursor: pointer; }

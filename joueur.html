@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Loup-Garou - Espace Joueur</title>
-  <link rel="stylesheet" href="style.css?v=26">
+  <link rel="stylesheet" href="style.css?v=31">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -59,6 +59,8 @@
       <!-- Sorcière : potions -->
       <div id="witch-panel" class="action-panel" style="display: none;">
         <h3>🧪 Sorcière, c'est ton tour</h3>
+        <p id="witch-error" class="error-message" style="display: none;"></p>
+        <p id="witch-hint" class="hint" style="display: none;">Une seule potion par tour : sauver OU empoisonner. Tu peux aussi ne rien faire.</p>
         <div id="witch-save" style="display: none;">
           <p id="witch-victim-text"></p>
           <button class="btn btn-vert pick-btn" id="witch-save-btn" onclick="witchToggleSave()"></button>
@@ -72,11 +74,31 @@
         <button class="btn btn-night" id="witch-confirm" onclick="witchConfirm()">Ne rien faire</button>
       </div>
 
+      <!-- Voyante : découvrir le rôle d'un joueur -->
+      <div id="seer-panel" class="action-panel" style="display: none;">
+        <h3>🔮 Voyante, qui veux-tu observer ?</h3>
+        <div id="seer-choose">
+          <p>Choisis un joueur : son rôle te sera révélé. Un seul choix par tour.</p>
+          <div id="seer-list" class="pick-list"></div>
+          <button class="btn btn-night" id="seer-confirm" onclick="seerConfirm()" disabled>Découvrir son rôle</button>
+        </div>
+        <div id="seer-result" style="display: none;">
+          <p id="seer-result-text"></p>
+          <div class="seer-card">
+            <img id="seer-result-img" alt="">
+            <h4 id="seer-result-role"></h4>
+            <p id="seer-result-desc"></p>
+          </div>
+          <button class="btn btn-effect" onclick="hidePanel('seer-panel')">J'ai vu, fermer</button>
+        </div>
+      </div>
+
       <!-- Vote du village (de jour) -->
       <div id="vote-panel" class="action-panel" style="display: none;">
         <h3>🗳️ Vote du village</h3>
         <p id="vote-info">Qui veux-tu éliminer ? Tu peux changer ton vote tant qu'il est ouvert.</p>
         <div id="vote-list" class="pick-list"></div>
+        <button class="btn btn-danger" id="vote-confirm" onclick="voteConfirm()" disabled>🗳️ Voter</button>
       </div>
 
       <div id="card-area" style="display: none;">
@@ -94,7 +116,7 @@
       </div>
     </section>
   </main>
-  <p class="hint" style="text-align:center;">Version 26</p>
+  <p class="hint" style="text-align:center;">Version 31</p>
 
   <script>
     (function () {
@@ -123,7 +145,7 @@
       });
     })();
   </script>
-  <script src="sim-peer.js?v=26"></script>
-  <script src="player.js?v=26"></script>
+  <script src="sim-peer.js?v=31"></script>
+  <script src="player.js?v=31"></script>
 </body>
 </html>
