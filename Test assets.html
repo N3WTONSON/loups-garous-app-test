@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
+  <title>Test des assets Supabase</title>
+  <style>
+    body { font-family: system-ui, sans-serif; background: #0b0d14; color: #e2e8f0; padding: 20px; max-width: 900px; margin: 0 auto; }
+    h1 { font-size: 1.4rem; }
+    #summary { padding: 12px 16px; border-radius: 8px; background: #1e293b; margin-bottom: 16px; line-height: 1.5; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    td { padding: 6px 8px; border-bottom: 1px solid #1e293b; word-break: break-all; }
+    td:first-child { width: 90px; white-space: nowrap; }
+    .ok { color: #4ade80; } .ko { color: #f87171; } .wait { color: #94a3b8; }
+    a { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <h1>Test des liens Supabase</h1>
+  <div id="summary">Test en cours…</div>
+  <table id="rows"></table>
+
+  <script>
+// Liens directs vers le bucket Supabase "assets" (bucket PUBLIC requis).
+// Chaque fichier est référencé par son URL complète : modifiez une ligne si un fichier change de nom.
+const SUPABASE_BASE = "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets";
+
+const ASSETS = {
+  images: {
+    "Verso.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/joueur/images/Verso.png",
+    "Chasseur.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Chasseur.png",
+    "Cupidon.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Cupidon.png",
+    "Loup-Garou.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Loup-Garou.png",
+    "Maire.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Maire.png",
+    "Voyante.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voyante.png",
+    "Voleur.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voleur.png",
+    "Villageois.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Villageois.png",
+    "Renard.jpg": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Renard.jpg",
+    "Petite Fille.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Petite%20Fille.png",
+    "Sorciere.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Sorciere.png",
+    "Titre.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png",
+    "fond-village.jpg": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/fond-village.jpg",
+  },
+  audio: {
+    // Fichiers présents dans votre liste :
+    "0 mort.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/0%20mort.mp3",
+    "1 mort.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/1%20mort.mp3",
+    "2 morts.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/2%20morts.mp3",
+    "3 morts.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/3%20morts.mp3",
+    "Appel Cupidon V2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20Cupidon%20V2.mp3",
+    "Appel jour V2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20jour%20V2.mp3",
+    "Appel Loups-Garous V2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20Loups-Garous%20V2.mp3",
+    "Appel nuit V2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20nuit%20V2.mp3",
+    "Appel Renard non.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20Renard%20non.mp3",
+    "Appel Renard oui.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20Renard%20oui.mp3",
+    "Appel renard V2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20renard%20V2.mp3",
+    "Appel voleur V3.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20voleur%20V3.mp3",
+    "Appel voyante V2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20voyante%20V2.mp3",
+    "Fermer les yeux.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Fermer%20les%20yeux.mp3",
+    "Voter.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Voter.mp3",
+    "Le hurlement du loup 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Le%20hurlement%20du%20loup%201.mp3",
+    "Le hurlement du loup 2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Le%20hurlement%20du%20loup%202.mp3",
+    "Le hurlement du loup 3.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Le%20hurlement%20du%20loup%203.mp3",
+    "Effet sorciere.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Effet%20sorciere.mp3",
+    // Fichiers à vérifier / uploader (absents de votre liste) :
+    "Maire.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Maire.mp3",
+    "Sorciere.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere.mp3",
+    "Sorciere 2 potions.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%202%20potions.mp3",
+    "Sorciere potion de vie.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%20potion%20de%20vie.mp3",
+    "Sorciere potion de mort.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%20potion%20de%20mort.mp3",
+    "chasseur.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/chasseur.mp3",
+  },
+  video: {
+    "Mort Loup.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Mort%20Loup.mp4",
+    "Elimination 2.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Elimination%202.mp4",
+    "Empoisoner.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Empoisoner.mp4",
+    "Chasseur.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Chasseur.mp4",
+    "Cupidon.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Cupidon.mp4",
+    "La voyante.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/La%20voyante.mp4",
+    "Loup-Garou.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Loup-Garou.mp4",
+    "Maire.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Maire.mp4",
+    "Renard.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Renard.mp4",
+    "Voleur.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Voleur.mp4",
+    // À vérifier / uploader :
+    "Sorciere.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Sorciere.mp4",
+  }
+};
+
+const ASSET_FOLDERS = { images: "images", audio: "mj/audio", video: "mj/video" };
+
+// URL générique (secours si un nom n'est pas dans la table ci-dessus)
+function assetUrl(path) {
+  return SUPABASE_BASE + "/" + path.split("/").map(encodeURIComponent).join("/");
+}
+
+// mediaUrl("audio", "0 mort.mp3") -> lien direct Supabase
+function mediaUrl(kind, name) {
+  return (ASSETS[kind] && ASSETS[kind][name]) || assetUrl(ASSET_FOLDERS[kind] + "/" + name);
+}
+
+  </script>
+  <script>
+    const TIMEOUT = 10000;
+    const rows = document.getElementById('rows');
+    let total = 0, done = 0, failed = [];
+
+    function check(kind, url) {
+      return new Promise((resolve) => {
+        let el;
+        const finish = (ok) => { clearTimeout(t); resolve(ok); };
+        const t = setTimeout(() => finish(false), TIMEOUT);
+        if (kind === 'images') {
+          el = new Image();
+          el.onload = () => finish(true);
+          el.onerror = () => finish(false);
+        } else {
+          el = document.createElement(kind === 'audio' ? 'audio' : 'video');
+          el.preload = 'metadata';
+          el.onloadedmetadata = () => finish(true);
+          el.onerror = () => finish(false);
+        }
+        el.src = url;
+      });
+    }
+
+    async function run() {
+      const jobs = [];
+      for (const kind of Object.keys(ASSETS)) {
+        for (const [name, url] of Object.entries(ASSETS[kind])) {
+          total++;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `<td class="wait">⏳ ${kind}</td><td></td>`;
+          tr.children[1].innerHTML = `${name}<br><a href="${url}" target="_blank" rel="noopener">${url}</a>`;
+          rows.appendChild(tr);
+          jobs.push(check(kind, url).then((ok) => {
+            done++;
+            tr.children[0].className = ok ? 'ok' : 'ko';
+            tr.children[0].textContent = (ok ? '✅ ' : '❌ ') + kind;
+            if (!ok) failed.push(`${kind}/${name}`);
+          }));
+        }
+      }
+      await Promise.all(jobs);
+      const s = document.getElementById('summary');
+      if (failed.length === 0) {
+        s.innerHTML = `✅ Les ${total} fichiers sont accessibles.`;
+      } else if (failed.length === total) {
+        s.innerHTML = `❌ <strong>Aucun fichier accessible.</strong> Le bucket « assets » n'est probablement pas public (Supabase → Storage → assets → ⋮ → Edit bucket → cocher « Public bucket »), ou l'adresse du projet est incorrecte.`;
+      } else {
+        s.innerHTML = `⚠️ ${total - failed.length}/${total} accessibles. Fichiers manquants ou mal nommés (${failed.length}) : <br>` +
+          failed.map((f) => `• ${f}`).join('<br>') +
+          `<br><br>Uploadez-les dans le bon dossier, ou corrigez le nom dans le bloc ASSETS de <code>script.js</code> et <code>player.js</code>.`;
+      }
+    }
+    run();
+  </script>
+</body>
+</html>
