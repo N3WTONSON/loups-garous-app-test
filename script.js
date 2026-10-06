@@ -1,4 +1,4 @@
-const VERSION_APP = "38";
+const VERSION_APP = "40";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -132,7 +132,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=38', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=40', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -1723,3 +1723,10 @@ document.addEventListener('keydown', (e) => {
 });
 
 updateCallButtons();
+
+// Diagnostic de la police des noms (console, F12) : indique si « Angel Wish » est bien chargée
+if (typeof document !== 'undefined' && document.fonts && document.fonts.load) {
+  document.fonts.load("20px 'Angel Wish'", 'Alice').then((f) => {
+    console.info('Police Angel Wish :', f && f.length ? 'chargée ✅' : 'NON chargée ❌ (les noms utilisent la police de secours)');
+  }).catch(() => console.warn('Police Angel Wish : erreur de chargement'));
+}

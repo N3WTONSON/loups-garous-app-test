@@ -154,6 +154,20 @@ function mediaUrl(kind, name) {
           `<br><br>Uploadez-les dans le bon dossier, ou corrigez le nom dans le bloc ASSETS de <code>script.js</code> et <code>player.js</code>.`;
       }
     }
+    // Police des noms : le fichier .ttf est un secours (la police est aussi intégrée dans style.css)
+    async function checkFont() {
+      const tr = document.createElement('tr');
+      let ok = false;
+      try {
+        const ff = new FontFace('AngelWishFichier', "url('Angel_wish.ttf')");
+        await ff.load();
+        ok = true;
+      } catch (e) { ok = false; }
+      tr.innerHTML = `<td class="${ok ? 'ok' : 'wait'}">${ok ? '✅' : 'ℹ️'} police</td><td>Angel_wish.ttf (secours)<br>` +
+        (ok ? 'Fichier présent à la racine du site.' : "Fichier absent ou illisible : sans conséquence, la police est intégrée dans <code>style.css</code>.") + '</td>';
+      document.getElementById('rows').appendChild(tr);
+    }
+    checkFont();
     run();
   </script>
 </body>
