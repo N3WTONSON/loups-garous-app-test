@@ -217,6 +217,14 @@ function connect(room, name, token, isAuto) {
         renderVoteList();
       } else if (data.type === 'voteClose') {
         hidePanel('vote-panel');
+      } else if (data.type === 'mayorTurn') {
+        showMayorPanel(data);
+      } else if (data.type === 'mayorAck') {
+        mayorState.my = data.target;
+        mayorState.picked = data.target;
+        renderMayorList();
+      } else if (data.type === 'mayorClose') {
+        hidePanel('mayor-panel');
       } else if (data.type === 'seerTurn') {
         showSeerPanel(data.targets || []);
       } else if (data.type === 'seerResult') {
@@ -403,7 +411,7 @@ function setAliveUI(alive) {
   const banner = document.getElementById('dead-banner');
   if (banner) banner.style.display = alive ? 'none' : 'block';
   if (!alive) {
-    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel'].forEach(hidePanel);
+    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel'].forEach(hidePanel);
   }
 }
 
@@ -649,4 +657,44 @@ function showSeerResult(name, role) {
     img.style.display = 'none';
   }
   showPanel('seer-panel');
+}
+
+// --- Élection du Maire : on choisit un nom, puis on appuie sur « Voter » (modifiable tant que l'élection est ouverte) ---
+let mayorState = { targets: [], my: null, picked: null };
+
+function showMayorPanel(data) {
+  mayorState = { targets: data.targets || [], my: data.myVote || null, picked: data.myVote || null };
+  renderMayorList();
+  showPanel('mayor-panel');
+}
+
+function renderMayorList() {
+  const list = document.getElementById('mayor-list');
+  list.innerHTML = '';
+  mayorState.targets.forEach((name) => {
+    list.appendChild(pickButton(name, {
+      selected: mayorState.picked === name,
+      onClick: () => { mayorState.picked = name; renderMayorList(); }
+    }));
+  });
+
+  const btn = document.getElementById('mayor-confirm');
+  if (!mayorState.picked) {
+    btn.disabled = true;
+    btn.textContent = '👑 Voter';
+  } else if (mayorState.my && mayorState.picked === mayorState.my) {
+    btn.disabled = true;
+    btn.textContent = `✅ Vote enregistré : ${mayorState.my}`;
+  } else {
+    btn.disabled = false;
+    btn.textContent = mayorState.my ? `👑 Changer mon vote pour ${mayorState.picked}` : `👑 Voter pour ${mayorState.picked}`;
+  }
+  document.getElementById('mayor-info').textContent = mayorState.my
+    ? `Ton vote : ${mayorState.my}. Tu peux le changer tant que l'élection est ouverte.`
+    : "Choisis le joueur que tu veux comme Maire, puis appuie sur « Voter ».";
+}
+
+function mayorConfirm() {
+  if (!conn || !conn.open || !mayorState.picked) return;
+  conn.send({ type: 'mayorVote', target: mayorState.picked });
 }

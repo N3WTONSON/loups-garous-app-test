@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Loup-Garou - Espace Joueur</title>
-  <link rel="stylesheet" href="style.css?v=32">
+  <link rel="stylesheet" href="style.css?v=33">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -93,6 +93,14 @@
         </div>
       </div>
 
+      <!-- Élection du Maire -->
+      <div id="mayor-panel" class="action-panel" style="display: none;">
+        <h3>👑 Élection du Maire</h3>
+        <p id="mayor-info">Choisis le joueur que tu veux comme Maire, puis appuie sur « Voter ».</p>
+        <div id="mayor-list" class="pick-list"></div>
+        <button class="btn btn-day" id="mayor-confirm" onclick="mayorConfirm()" disabled>👑 Voter</button>
+      </div>
+
       <!-- Vote du village (de jour) -->
       <div id="vote-panel" class="action-panel" style="display: none;">
         <h3>🗳️ Vote du village</h3>
@@ -116,7 +124,7 @@
       </div>
     </section>
   </main>
-  <p class="hint" style="text-align:center;">Version 32</p>
+  <p class="hint" style="text-align:center;">Version 33</p>
 
   <script>
     (function () {
@@ -145,7 +153,7 @@
       });
     })();
   </script>
-  <script src="sim-peer.js?v=32"></script>
-  <script src="player.js?v=32"></script>
+  <script src="sim-peer.js?v=33"></script>
+  <script src="player.js?v=33"></script>
 </body>
 </html>

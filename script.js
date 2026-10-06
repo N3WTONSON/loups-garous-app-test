@@ -1,4 +1,4 @@
-const VERSION_APP = "32";
+const VERSION_APP = "33";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -129,7 +129,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=32', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=33', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -140,6 +140,9 @@ window.addEventListener('message', (event) => {
   if (!data) return;
   if (data.action === 'projectorReady') {
     syncLobbyToProjector();
+  } else if (data.action === 'eventEnded') {
+    // l'annonce de mort vient de se terminer : si le jour attendait, il se lève maintenant
+    if (dayAfterEvent) startDayScene();
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
     if (currentOverlayFile && mediaUrl('video', currentOverlayFile) === data.url) {
@@ -208,6 +211,7 @@ function routePlayerMessage(conn, data) {
   else if (data.type === 'witchAction') handleWitchAction(conn, data);
   else if (data.type === 'villageVote') handleVillageVote(conn, data);
   else if (data.type === 'seerChoice') handleSeerChoice(conn, data);
+  else if (data.type === 'mayorVote') handleMayorVote(conn, data);
 }
 
 function handlePlayerConnClose(conn) {
@@ -413,7 +417,7 @@ function renderMJDashboard() {
     const turn = turnStatusOf(item);
     return `
     <tr class="${[item.alive ? '' : 'dead', turn ? 'turn turn-' + turn : ''].join(' ').trim()}">
-      <td><strong class="nom-joueur">${escapeHtml(item.name)}</strong> ${item.connected ? '' : '📴'}${turn ? `<span class="turn-badge">${TURN_BADGES[turn]}</span>` : ''}</td>
+      <td><strong class="nom-joueur">${escapeHtml(item.name)}</strong>${item.name === mayor ? ' 👑' : ''} ${item.connected ? '' : '📴'}${turn ? `<span class="turn-badge">${TURN_BADGES[turn]}</span>` : ''}</td>
       <td>🎭 ${escapeHtml(item.role)}</td>
       <td>
         <label style="cursor: pointer; display: flex; align-items: center; gap: 6px;">
@@ -523,11 +527,33 @@ function playNightPhase() {
   playAudioFile("Appel nuit V2.mp3");
 }
 
-function playDayPhase() {
-  currentTurnRole = null;
+// Victimes des loups pas encore annoncées (celles que la Sorcière n'a pas sauvées)
+function pendingWolfVictims() {
+  return [...selection.wolves].filter((n) => { const p = findPlayer(n); return p && p.alive; });
+}
+
+let dayAfterEvent = false;   // vrai pendant l'annonce de la mort des loups : le jour se lèvera juste après
+
+function startDayScene() {
+  dayAfterEvent = false;
   playScene(YT_ID_JOUR);
   openVillageVote();
   playAudioFile("Appel jour V2.mp3");
+}
+
+// « Le jour se lève » : s'il y a eu des morts causées par les loups, leur annonce (vidéo + noms) passe d'abord.
+function playDayPhase() {
+  currentTurnRole = null;
+  if (dayAfterEvent) { startDayScene(); return; }           // 2e clic : on n'attend plus la fin de l'annonce
+  if (pendingWolfVictims().length && projectorOpen()) {
+    dayAfterEvent = true;
+    if (announceKillEvent('wolves', { auto: true })) {
+      showToast("☀️ Annonce de la mort des loups en cours : le jour se lèvera juste après (recliquez pour passer directement au jour).", 'info');
+      return;
+    }
+    dayAfterEvent = false;
+  }
+  startDayScene();
 }
 
 function presentCharacters() {
@@ -547,6 +573,7 @@ function playCommand(cmd) {
   } else if (cmd === 'voter_maire') {
     // Vidéo du Maire en plein écran (sans recadrage), sans diffuser l'audio Maire.mp3
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
+    openMayorVote();                              // les joueurs votent depuis leur téléphone
   } else if (cmd === 'voter') {
     playAudioFile("Voter.mp3");
     if (!villageVote.open) openVillageVote();
@@ -695,6 +722,7 @@ function fallbackSpeech(filename) {
 }
 
 function stopAllMedia() {
+  dayAfterEvent = false;
   sendToProjector({ action: 'stop' });
   overlayMode = null;
   currentOverlayFile = null;
@@ -860,7 +888,7 @@ let night = newNight();
 let wolvesOpen = false;
 let villageVote = { open: false, votes: new Map() };
 let autoVoteResolve = true;   // élimination automatique quand tous les joueurs en vie ont voté
-let selection = { wolves: new Set(), poison: new Set(), vote: new Set() };
+let selection = { wolves: new Set(), poison: new Set(), vote: new Set(), mayor: new Set() };
 
 function newNight() {
   return { wolfVotes: new Map(), wolfFinal: new Set(), wolfVictim: null, saved: false, poisoned: null };
@@ -873,7 +901,10 @@ function resetGameAutomation() {
   night = newNight();
   wolvesOpen = false;
   villageVote = { open: false, votes: new Map() };
-  selection = { wolves: new Set(), poison: new Set(), vote: new Set() };
+  selection = { wolves: new Set(), poison: new Set(), vote: new Set(), mayor: new Set() };
+  mayor = null;
+  mayorVote = { open: false, votes: new Map() };
+  dayAfterEvent = false;
   seerWaiting = new Set();
   seerResults = new Map();
   seerLog = null;
@@ -944,7 +975,8 @@ function resyncPlayer(p) {
   if (wolvesOpen && p.role === 'Loup-Garou' && !night.wolfFinal.has(p.name)) sendWolfTurn(p);
   if (seerResults.has(p.name)) { const r = seerResults.get(p.name); sendTo(p, { type: 'seerResult', name: r.name, role: r.role }); }
   else if (seerWaiting.has(p.name)) sendSeerTurn(p);
-  if (villageVote.open) sendVoteTurn(p);
+  if (mayorVote.open) sendMayorTurn(p);
+  else if (villageVote.open) sendVoteTurn(p);
 }
 
 // ------------------------------- CUPIDON -------------------------------
@@ -1140,9 +1172,84 @@ function handleSeerChoice(conn, data) {
   renderMJDashboard();
 }
 
+// --------------------------- ÉLECTION DU MAIRE ---------------------------
+// Chaque joueur en vie vote depuis son téléphone (noms uniquement). Le plus voté devient Maire : son nom s'affiche
+// avec une couronne sur l'écran secondaire.
+let mayor = null;
+let mayorVote = { open: false, votes: new Map() };
+
+function sendMayorTurn(p) {
+  if (!mayorVote.open || !p.alive) return;
+  sendTo(p, {
+    type: 'mayorTurn',
+    targets: alivePlayers().map((x) => x.name),
+    myVote: mayorVote.votes.get(p.name) || null
+  });
+}
+
+function openMayorVote() {
+  mayorVote = { open: true, votes: new Map() };
+  selection.mayor = new Set();
+  players.forEach((p) => sendTo(p, { type: 'voteClose' }));   // le vote du village (s'il est ouvert) est masqué pendant l'élection
+  alivePlayers().forEach(sendMayorTurn);
+  renderMJDashboard();
+}
+
+function handleMayorVote(conn, data) {
+  const v = senderOf(conn);
+  if (!v || !v.alive || !mayorVote.open) return;
+  const t = findPlayer(String(data.target || ''));
+  if (!t || !t.alive) return;
+  mayorVote.votes.set(v.name, t.name);
+  sendTo(v, { type: 'mayorAck', target: t.name });
+
+  // tous les joueurs en vie ont voté : l'élection se clôt et le Maire est annoncé automatiquement
+  if (autoVoteResolve && alivePlayers().every((p) => mayorVote.votes.has(p.name))) {
+    resolveMayorVote();
+    return;
+  }
+  renderMJDashboard();
+}
+
+function closeMayorVote(silent = false) {
+  if (!mayorVote.open) return;
+  mayorVote.open = false;
+  players.forEach((p) => sendTo(p, { type: 'mayorClose' }));
+  if (villageVote.open) alivePlayers().forEach(sendVoteTurn);   // le vote du village réapparaît s'il était ouvert
+  if (!silent) {
+    const { names, max } = topOf(aliveTally(mayorVote.votes));
+    if (names.length === 1) {
+      selection.mayor = new Set([names[0]]);
+      showToast(`👑 ${names[0]} a le plus de votes (${max}).`, 'info');
+    } else if (names.length > 1) {
+      selection.mayor = new Set();
+      showToast(`👑 Égalité entre ${names.join(', ')} : désignez le Maire à la main (ou rouvrez l'élection).`, 'info');
+    } else {
+      showToast("👑 Aucun vote exprimé pour le Maire.", 'info');
+    }
+  }
+  renderMJDashboard();
+}
+
+function resolveMayorVote() {
+  closeMayorVote(false);
+  if (selection.mayor.size === 1) announceMayor();
+}
+
+// Proclame le Maire : couronne + nom sur l'écran secondaire
+function announceMayor() {
+  const name = [...selection.mayor].find((n) => { const p = findPlayer(n); return p && p.alive; });
+  if (!name) { showToast("Sélectionnez d'abord le joueur élu Maire.", 'info'); return; }
+  mayor = name;
+  selection.mayor = new Set();
+  const shown = sendToProjector({ action: 'announceMayor', name });
+  showToast(shown ? `👑 ${name} est élu Maire du village !` : `👑 ${name} est élu Maire (écran secondaire fermé : rien n'est affiché).`, 'info');
+  renderMJDashboard();
+}
+
 // --------------------------- VOTE DU VILLAGE ---------------------------
 function sendVoteTurn(p) {
-  if (!villageVote.open || !p.alive) return;
+  if (!villageVote.open || !p.alive || mayorVote.open) return;
   sendTo(p, {
     type: 'voteTurn',
     targets: alivePlayers().filter((x) => x !== p).map((x) => x.name),
@@ -1209,17 +1316,17 @@ const EVENTS = {
 
 function announceKillEvent(kind, opts = {}) {
   const cfg = EVENTS[kind];
-  if (!cfg) return;
+  if (!cfg) return false;
   const names = [...selection[kind]].filter((n) => { const p = findPlayer(n); return p && p.alive; });
-  if (!names.length) { showToast("Sélectionnez d'abord au moins un joueur à annoncer.", 'info'); return; }
+  if (!names.length) { showToast("Sélectionnez d'abord au moins un joueur à annoncer.", 'info'); return false; }
   if (!projectorOpen()) {
     if (opts.auto) {
-      showToast("🗳️ Vote terminé : ouvrez l'écran secondaire puis cliquez sur « Annoncer l'élimination » (le joueur est déjà présélectionné).", 'info');
+      showToast(`Ouvrez l'écran secondaire puis cliquez sur « ${cfg.button} » (le ou les joueurs sont déjà présélectionnés).`, 'info');
     } else {
       alert("Veuillez d'abord cliquer sur 'Ouvrir l'Écran Secondaire' !");
     }
     renderMJDashboard();
-    return;
+    return false;
   }
 
   const deaths = killPlayers(names);
@@ -1236,6 +1343,7 @@ function announceKillEvent(kind, opts = {}) {
   sendToProjector({ action: 'eventVideo', url: mediaUrl('video', cfg.video), deaths, namesAt: cfg.namesAt });
   renderMJDashboard();
   showToast(deaths.map((d) => (d.love ? `💔 ${d.name} meurt de chagrin` : `💀 ${d.name}`)).join(' — '), 'info');
+  return true;
 }
 
 // ---------------------- PANNEAU D'AUTOMATISATION ----------------------
@@ -1265,6 +1373,10 @@ function renderAutomation() {
     ? `🟢 vote ouvert — ${night.wolfFinal.size}/${wolves.length} validé(s) — ${countsText(wolfCounts)} <button type="button" class="auto-btn" data-act="closeWolves">Clore le vote</button>`
     : (night.wolfVictim ? `🔒 victime désignée : <strong>${escapeHtml(night.wolfVictim)}</strong>${night.saved ? ' (sauvée par la Sorcière)' : ''}` : '⚪ en attente de l\'appel des loups');
 
+  const mayorStatus = mayorVote.open
+    ? `🟢 élection ouverte — ${mayorVote.votes.size}/${alivePlayers().length} ont voté — ${countsText(aliveTally(mayorVote.votes))} <button type="button" class="auto-btn" data-act="closeMayor">Clore l'élection</button>`
+    : `⚪ fermée <button type="button" class="auto-btn" data-act="openMayor">Ouvrir l'élection</button>`;
+
   const voteStatus = villageVote.open
     ? `🟢 vote ouvert — ${villageVote.votes.size}/${alivePlayers().length} ont voté — ${countsText(voteCounts)} <button type="button" class="auto-btn" data-act="closeVote">Clore le vote</button>`
     : `⚪ fermé — il s'ouvre quand le jour se lève <button type="button" class="auto-btn" data-act="openVote">Ouvrir le vote</button>`;
@@ -1281,8 +1393,15 @@ function renderAutomation() {
       <p><strong>🐺 Loups :</strong> ${wolfStatus}</p>
       <p><strong>🧪 Sorcière :</strong> ${witchStatus}</p>
       <p><strong>🔮 Voyante :</strong> ${seerWaiting.size ? 'choix en cours…' : (seerLog ? `a observé <strong>${escapeHtml(seerLog.target)}</strong> (${escapeHtml(seerLog.role)})` : 'en attente de son appel')}</p>
+      <p><strong>👑 Maire :</strong> ${mayor ? escapeHtml(mayor) : 'pas encore élu'} — ${mayorStatus}</p>
       <p><strong>🗳️ Vote du village :</strong> ${voteStatus}</p>
-      <label class="auto-toggle"><input type="checkbox" data-act="toggleAutoVote" ${autoVoteResolve ? 'checked' : ''}> Éliminer automatiquement dès que tout le monde a voté (avec la vidéo)</label>
+      <label class="auto-toggle"><input type="checkbox" data-act="toggleAutoVote" ${autoVoteResolve ? 'checked' : ''}> Résoudre automatiquement dès que tout le monde a voté (élimination avec vidéo, élection du Maire)</label>
+    </div>
+
+    <div class="auto-block">
+      <p class="auto-label">👑 Désigner le Maire</p>
+      <div class="chips">${chipsHtml('mayor')}</div>
+      <button type="button" class="btn btn-day auto-announce" data-act="announceMayor">👑 Annoncer le Maire</button>
     </div>
 
     ${['wolves', 'poison', 'vote'].map((kind) => `
@@ -1301,7 +1420,8 @@ document.addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if (chip) {
     const { kind, name } = chip.dataset;
-    if (selection[kind].has(name)) selection[kind].delete(name);
+    if (kind === 'mayor') selection.mayor = selection.mayor.has(name) ? new Set() : new Set([name]);   // un seul Maire
+    else if (selection[kind].has(name)) selection[kind].delete(name);
     else selection[kind].add(name);
     if (kind === 'wolves' && selection.wolves.size === 1) night.wolfVictim = [...selection.wolves][0];
     renderAutomation();
@@ -1313,6 +1433,9 @@ document.addEventListener('click', (e) => {
   else if (btn.dataset.act === 'closeWolves') closeWolfVote();
   else if (btn.dataset.act === 'closeVote') closeVillageVote(false);
   else if (btn.dataset.act === 'openVote') openVillageVote();
+  else if (btn.dataset.act === 'openMayor') openMayorVote();
+  else if (btn.dataset.act === 'closeMayor') closeMayorVote(false);
+  else if (btn.dataset.act === 'announceMayor') announceMayor();
   else if (btn.dataset.act === 'toggleAutoVote') { autoVoteResolve = !!e.target.checked; renderAutomation(); }
 });
 

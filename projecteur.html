@@ -298,6 +298,58 @@
       .claw { animation: none; transform: scaleY(1); }
       .death-name { animation: none; }
     }
+
+    /* ÉLECTION DU MAIRE : nom doré + couronne */
+    #mayor-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2vh;
+      background: radial-gradient(circle at center, rgba(70, 48, 4, 0.82) 0%, rgba(0, 0, 0, 0.94) 100%);
+      opacity: 1;
+      transition: opacity 0.6s ease;
+      cursor: pointer;
+    }
+    #mayor-overlay.out { opacity: 0; }
+    .mayor-crown {
+      font-size: 22vh;
+      line-height: 1;
+      filter: drop-shadow(0 0 3vh rgba(250, 204, 21, 0.85));
+      animation: crownDrop 0.8s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+    }
+    .mayor-name {
+      --len: 8;
+      font-family: 'Wolf Brothers', 'Segoe UI', sans-serif;
+      font-size: min(18vh, calc(170vw / var(--len)));
+      line-height: 1;
+      letter-spacing: 0.6vh;
+      white-space: nowrap;
+      color: #fde68a;
+      text-shadow: 0 0 4vh rgba(250, 204, 21, 0.75), 0 0.6vh 1.4vh #000;
+      animation: mayorNameIn 0.7s 0.4s ease-out both;
+    }
+    .mayor-sub {
+      font-size: 4vh;
+      color: #fcd34d;
+      letter-spacing: 0.4vh;
+      text-shadow: 0 0.3vh 0.8vh #000;
+      animation: mayorNameIn 0.7s 0.7s ease-out both;
+    }
+    @keyframes crownDrop {
+      from { opacity: 0; transform: translateY(-30vh) rotate(-18deg) scale(1.4); }
+      to   { opacity: 1; transform: none; }
+    }
+    @keyframes mayorNameIn {
+      from { opacity: 0; transform: scale(1.15); filter: blur(1vh); }
+      to   { opacity: 1; transform: none; filter: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .mayor-crown, .mayor-name, .mayor-sub { animation: none; }
+    }
   </style>
 </head>
 <body>
@@ -348,13 +400,18 @@
     </defs>
   </svg>
   <div id="death-overlay"><div id="death-list"></div></div>
+  <div id="mayor-overlay">
+    <div class="mayor-crown">👑</div>
+    <div id="mayor-name" class="mayor-name"></div>
+    <div class="mayor-sub">Maire du village</div>
+  </div>
 
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 32');
+    console.info('Projecteur - version 33');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -524,6 +581,29 @@
       if (eventActive) endEvent(); else hideDeaths();
     });
 
+
+    // --- ÉLECTION DU MAIRE : couronne + nom ---
+    let mayorTimer = null;
+    function hideMayor() {
+      const overlay = document.getElementById('mayor-overlay');
+      clearTimeout(mayorTimer);
+      overlay.classList.add('out');
+      setTimeout(() => { if (overlay.classList.contains('out')) overlay.style.display = 'none'; }, 600);
+    }
+    function showMayor(name) {
+      const overlay = document.getElementById('mayor-overlay');
+      const el = document.getElementById('mayor-name');
+      el.textContent = name;                                   // textContent : pas d'injection HTML
+      el.style.setProperty('--len', Math.max(String(name).length, 4));
+      overlay.classList.remove('out');
+      overlay.style.display = 'flex';
+      // on relance les animations à chaque annonce
+      overlay.querySelectorAll('.mayor-crown, .mayor-name, .mayor-sub').forEach((n) => { n.style.animation = 'none'; void n.offsetWidth; n.style.animation = ''; });
+      clearTimeout(mayorTimer);
+      mayorTimer = setTimeout(hideMayor, 9000);
+    }
+    document.getElementById('mayor-overlay').addEventListener('click', hideMayor);
+
     // --- VIDÉOS D'ANNONCE (loups, empoisonnement, vote) : plein écran + noms par-dessus ---
     function endEvent() {
       clearTimeout(eventTimer);
@@ -535,6 +615,7 @@
       eventVideo.load();
       hideDeaths();
       if (ytReady) ytPlayer.setVolume(targetVolume);   // on rend le son à la scène
+      if (window.opener) window.opener.postMessage({ action: 'eventEnded' }, '*');   // la régie peut enchaîner (ex. lever du jour)
     }
 
     function playEvent(data) {
@@ -611,6 +692,10 @@
           }
           break;
 
+        case 'announceMayor':
+          showMayor(data.name);
+          break;
+
         case 'announceDeath':
           showDeaths(data.deaths);
           break;
@@ -643,6 +728,7 @@
           document.getElementById('player').style.visibility = 'hidden';
           hideOverlay();
           endEvent();
+          hideMayor();
           break;
 
         case 'togglePause':
