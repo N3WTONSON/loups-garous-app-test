@@ -196,6 +196,18 @@
     /* Le lecteur YouTube reste invisible tant qu'aucune scène n'est lancée (création de la partie) */
     #player { visibility: hidden; }
 
+    /* Logo VB : toujours affiché en haut à gauche, en petit (au-dessus des vidéos, sous les annonces de mort) */
+    #logo-vb {
+      position: fixed;
+      top: 2vmin; left: 2vmin;
+      z-index: 35;
+      height: 9vmin;
+      max-width: 22vw;
+      object-fit: contain;
+      pointer-events: none;
+      filter: drop-shadow(0 0.4vmin 0.9vmin rgba(0, 0, 0, 0.85));
+    }
+
     /* QR code permanent en bas à droite : retrouver sa place en cours de partie */
     #mini-qr {
       position: fixed;
@@ -316,6 +328,9 @@
   <div id="player"></div>
   <video id="overlay-video" playsinline></video>
 
+  <!-- Logo VB (haut à gauche) -->
+  <img id="logo-vb" src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/logo%20vb.png" alt="Logo VB" onerror="this.style.display='none'">
+
   <!-- QR code permanent (reconnexion en cours de partie) -->
   <div id="mini-qr">
     <div id="mini-qr-code" class="mini-qr-code"></div>
@@ -339,7 +354,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 25');
+    console.info('Projecteur - version 32');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -381,6 +396,14 @@
         imp('border', '0'); imp('border-radius', '0'); imp('box-shadow', 'none');
       }
     }
+
+    // Fin d'une vidéo lue une seule fois : l'incrustation disparaît et la régie en est informée
+    overlayVideo.addEventListener('ended', () => {
+      if (overlayVideo.loop || !overlayVideo.hasAttribute('src')) return;
+      const url = overlayVideo.getAttribute('src');
+      hideOverlay();
+      if (window.opener) window.opener.postMessage({ action: 'overlayEnded', url }, '*');
+    });
 
     function hideOverlay() {
       overlayVideo.pause();
@@ -606,7 +629,7 @@
           hideWaitingScreen();
           setOverlayMode(data.mode);
           overlayVideo.src = data.url;
-          overlayVideo.loop = true;
+          overlayVideo.loop = data.loop !== false;   // false : lue une seule fois (ex. Maire)
           overlayVideo.style.display = 'block';
           overlayVideo.play().catch((err) => console.error("Erreur overlay :", err));
           break;
