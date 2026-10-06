@@ -1,0 +1,687 @@
+/* Police Wolf Brothers (fichier wolfbrothers.ttf à la racine du site) */
+@font-face {
+  font-family: 'Wolf Brothers';
+  src: url('wolfbrothers.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  --bg-color: #0b0d14;
+  --card-bg: rgba(22, 27, 46, 0.85);
+  --text-color: #e2e8f0;
+  --muted: #94a3b8;
+  --accent-night: #2563eb;
+  --accent-day: #d97706;
+  --accent-role: #7c3aed;
+  --accent-danger: #dc2626;
+  --accent-ok: #16a34a;
+}
+
+* { box-sizing: border-box; }
+
+/* Fond global (images hébergées sur Supabase) */
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background-color: var(--bg-color);
+  background-image: radial-gradient(circle at center, rgba(37, 99, 235, 0.15) 0%, rgba(11, 13, 20, 0.95) 100%),
+                    url('https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/fond-village.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  color: var(--text-color);
+  min-height: 100vh;
+}
+
+header {
+  text-align: center;
+  margin-bottom: 25px;
+  position: relative; /* S'assure que le header reste au-dessus du fond d'écran */
+  z-index: 10;
+}
+
+/* Affichage du Titre en PNG par-dessus le fond */
+.site-title-img {
+  display: block;
+  margin: 0 auto 10px auto;
+  max-width: 100%;
+  height: auto;
+  max-height: 160px;
+  object-fit: contain;
+  /* Ajout d'une ombre forte pour bien détacher l'image du fond sombre */
+  filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.8));
+}
+
+header p {
+  color: #94a3b8;
+  margin-top: 5px;
+}
+
+.container {
+  max-width: 800px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.container-wide { max-width: 1200px; }
+
+/* --- Mise en page de la régie : deux colonnes --- */
+.main-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+.column-left, .column-right { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+.column-right { position: sticky; top: 20px; }
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(6px);
+}
+.card h2 {
+  margin-top: 0;
+  font-size: 1.2rem;
+  color: #cbd5e1;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  padding-bottom: 10px;
+}
+
+/* Titres de sections de la régie et noms des joueurs en Wolf Brothers */
+.card h2.titre-wolf {
+  font-family: 'Wolf Brothers', 'Segoe UI', sans-serif;
+  font-weight: normal;
+  font-size: 1.6rem;
+  letter-spacing: 1px;
+}
+.nom-joueur {
+  font-family: 'Wolf Brothers', 'Segoe UI', sans-serif;
+  font-weight: normal;
+  letter-spacing: 1px;
+}
+.tag-list .nom-joueur, .mj-table .nom-joueur { font-size: 1.15em; }
+#welcome-title.nom-joueur { font-size: 1.9rem; }
+
+.hint { font-size: 0.75rem; color: var(--muted); word-break: break-all; margin: 4px 0 0; }
+
+.button-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin-top: 15px;
+}
+
+/* --- Boutons --- */
+.btn {
+  border: none;
+  border-radius: 8px;
+  padding: 16px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #fff;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.btn:hover { transform: translateY(-2px); filter: brightness(1.2); box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+.btn:active { transform: translateY(0); }
+.btn:disabled { opacity: 0.6; cursor: wait; transform: none; }
+.btn-large { width: 100%; font-size: 1.1rem; }
+.icon { font-size: 1.2rem; }
+
+.btn-night { background-color: var(--accent-night); }
+.btn-day { background-color: var(--accent-day); color: #000; }
+.btn-effect { background-color: #475569; }
+.btn-danger { background-color: var(--accent-danger); }
+.btn-projector { background-color: #dc2626; color: #fff; }
+.btn-vert { background-color: var(--accent-ok); color: #fff; }
+.btn-renard-oui { background-color: var(--accent-ok); color: #fff; }
+.btn-sorciere-orange { background-color: var(--accent-day); color: #fff; }
+
+/* --- Cartes de rôles --- */
+.role-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+}
+.btn-role-card {
+  background: rgba(124, 58, 237, 0.15);
+  border: 2px solid rgba(124, 58, 237, 0.4);
+  border-radius: 12px;
+  padding: 10px 8px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: 160px;
+  color: #fff;
+  transition: all 0.2s ease;
+}
+.btn-role-card:hover {
+  transform: translateY(-3px);
+  background: rgba(124, 58, 237, 0.3);
+  border-color: #8b5cf6;
+  box-shadow: 0 4px 15px rgba(124, 58, 237, 0.4);
+}
+.btn-role-card:active { transform: translateY(0); }
+.btn-role-card img {
+  width: auto;
+  max-width: 100%;
+  height: 95px;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+.btn-role-card span {
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
+  margin-top: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+
+/* --- Configuration des rôles / joueurs --- */
+.setup-grid { display: grid; gap: 20px; margin-bottom: 20px; }
+.setup-block h3 { margin: 0 0 10px; font-size: 1rem; color: #cbd5e1; }
+
+.tag-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.tag-list li {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.9rem;
+}
+.tag-list .remove { cursor: pointer; margin-left: 6px; color: #f87171; font-weight: bold; }
+.tag-list .remove:hover { color: #fca5a5; }
+
+/* --- Récapitulatif du MJ --- */
+.mj-table { width: 100%; border-collapse: collapse; }
+.mj-table th, .mj-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  font-size: 0.95rem;
+}
+.mj-table th { color: var(--muted); font-weight: 600; }
+.status-btn {
+  border: none;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-weight: 600;
+  cursor: pointer;
+  color: #fff;
+}
+.status-alive { background: var(--accent-ok); }
+.status-dead { background: #475569; }
+
+/* --- Espace joueur & carte masquée --- */
+.input-group { display: flex; flex-direction: column; gap: 10px; }
+input[type="text"] {
+  width: 100%;
+  padding: 14px;
+  font-size: 1rem;
+  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+}
+input[type="text"]::placeholder { color: var(--muted); }
+input[type="text"]:focus { outline: 2px solid #8b5cf6; outline-offset: 1px; }
+.error-message { color: #fca5a5; margin: 0; font-size: 0.95rem; }
+
+/* Verso de la carte cachée côté Joueur */
+.card-back {
+  position: relative;
+  margin: 20px auto 0;
+  max-width: 260px;
+  min-height: 360px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  text-align: center;
+  font-weight: 600;
+  cursor: pointer;
+  user-select: none;
+  background: rgba(15, 23, 42, 0.8);
+  border: 2px solid rgba(139, 92, 246, 0.5);
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+  transition: all 0.25s ease;
+}
+
+.card-back .verso-img {
+  width: 100%;
+  height: auto;
+  max-height: 310px;
+  object-fit: contain;
+  border-radius: 10px;
+  margin-bottom: 10px;
+  transition: transform 0.2s ease;
+}
+
+.card-back:hover .verso-img {
+  transform: scale(1.02);
+}
+
+.card-back span {
+  background: rgba(0, 0, 0, 0.75);
+  color: #fff;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 0.95rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(4px);
+  z-index: 2;
+}
+
+.card-back.revealed {
+  min-height: 50px;
+  padding: 10px;
+  background: rgba(124, 58, 237, 0.15);
+  border-style: solid;
+}
+
+.role-details {
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 20px;
+}
+.role-details img {
+  width: 100%;
+  max-width: 260px;
+  height: auto;
+  border-radius: 12px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.role-details h3 { margin: 0; font-size: 1.5rem; }
+.role-details p { margin: 0; max-width: 420px; line-height: 1.5; color: #cbd5e1; }
+
+.toast {
+  display: none;
+  position: fixed;
+  bottom: 20px; left: 50%;
+  transform: translateX(-50%);
+  max-width: 90vw;
+  padding: 12px 18px;
+  background: rgba(127, 29, 29, 0.95);
+  border: 1px solid #f87171;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.9rem;
+  z-index: 1000;
+}
+
+/* --- Adaptations écran --- */
+@media (max-width: 900px) {
+  .main-layout { grid-template-columns: 1fr; }
+  .column-right { position: static; }
+}
+@media (max-width: 700px) {
+  body { padding: 12px; background-attachment: scroll; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .btn, .btn-role-card, .card-back { transition: none; }
+}
+
+
+/* =====================================================================
+   THÈME « GRIFFURE & SANG » — début
+   Pour revenir au style précédent : supprimez tout ce bloc, jusqu'à la
+   ligne « THÈME GRIFFURE & SANG — fin ».
+   ===================================================================== */
+
+/* --- Encadrement des catégories : bord sombre, sang qui goutte, griffures --- */
+.card {
+  position: relative;
+  isolation: isolate;
+  border-radius: 6px;
+  border: 1px solid rgba(127, 29, 29, 0.75);
+  border-top: 3px solid #7f1d1d;
+  background: linear-gradient(180deg, rgba(42, 9, 12, 0.90), rgba(17, 10, 16, 0.92));
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.70),
+    inset 0 0 50px rgba(120, 0, 0, 0.22),
+    inset 0 0 0 1px rgba(0, 0, 0, 0.60);
+}
+/* gouttes de sang qui coulent du bord supérieur */
+.card::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 30px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='30' viewBox='0 0 240 30'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%234a0505'/%3E%3Cstop offset='1' stop-color='%23c21f1f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='url(%23g)'%3E%3Crect x='0' y='0' width='240' height='4'/%3E%3Cpath d='M14 0h7v10a3.5 3.5 0 0 1-7 0z'/%3E%3Cpath d='M52 0h8v20a4 4 0 0 1-8 0z'/%3E%3Cpath d='M96 0h6v7a3 3 0 0 1-6 0z'/%3E%3Cpath d='M130 0h7v15a3.5 3.5 0 0 1-7 0z'/%3E%3Cpath d='M170 0h9v25a4.5 4.5 0 0 1-9 0z'/%3E%3Cpath d='M210 0h6v12a3 3 0 0 1-6 0z'/%3E%3C/g%3E%3C/svg%3E") repeat-x left top;
+  z-index: -1;
+  pointer-events: none;
+}
+/* trois griffures dans le coin supérieur droit */
+.card::after {
+  content: "";
+  position: absolute;
+  top: 8px; right: 12px;
+  width: 58px; height: 74px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='100' viewBox='0 0 90 100'%3E%3Cdefs%3E%3ClinearGradient id='c' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23e11d1d' stop-opacity='0.95'/%3E%3Cstop offset='1' stop-color='%237f1d1d' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='url(%23c)'%3E%3Cpolygon points='6,0 14,0 38,100'/%3E%3Cpolygon points='30,0 39,0 62,100'/%3E%3Cpolygon points='54,0 63,0 86,100'/%3E%3C/g%3E%3C/svg%3E") no-repeat center / contain;
+  opacity: 0.55;
+  z-index: -1;
+  pointer-events: none;
+}
+.card h2 {
+  margin-top: 8px;
+  color: #f4dcdc;
+  border-bottom: none;
+  padding-bottom: 0;
+  text-shadow: 0 2px 6px rgba(0, 0, 0, 0.85), 0 0 14px rgba(185, 28, 28, 0.35);
+}
+/* soulignement en forme de coup de griffe */
+.card h2::after {
+  content: "";
+  display: block;
+  height: 4px;
+  margin-top: 10px;
+  background: linear-gradient(90deg, #dc2626 0%, #7f1d1d 45%, transparent 100%);
+  clip-path: polygon(0 0, 100% 40%, 100% 60%, 0 100%);
+}
+
+/* --- Boutons : bords déchirés, griffures, filet de sang --- */
+.btn {
+  position: relative;
+  border-radius: 2px;
+  clip-path: polygon(0 5px, 6px 0, 22% 3px, 48% 0, 74% 4px, calc(100% - 8px) 0, 100% 7px, calc(100% - 3px) 55%, 100% calc(100% - 6px), calc(100% - 10px) 100%, 70% calc(100% - 3px), 40% 100%, 16% calc(100% - 4px), 8px 100%, 0 calc(100% - 8px), 3px 45%);
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='100' viewBox='0 0 90 100'%3E%3Cdefs%3E%3ClinearGradient id='c' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%231a0000' stop-opacity='0.55'/%3E%3Cstop offset='1' stop-color='%231a0000' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='url(%23c)'%3E%3Cpolygon points='6,0 14,0 38,100'/%3E%3Cpolygon points='30,0 39,0 62,100'/%3E%3Cpolygon points='54,0 63,0 86,100'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(0, 0, 0, 0.30) 100%);
+  background-repeat: no-repeat, no-repeat;
+  background-position: right 12px center, 0 0;
+  background-size: auto 78%, 100% 100%;
+  box-shadow: inset 0 -4px 0 rgba(90, 0, 0, 0.85), inset 0 0 18px rgba(0, 0, 0, 0.45);
+  letter-spacing: 0.4px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
+}
+.btn-day { text-shadow: none; }
+.btn:hover {
+  transform: translateY(-2px) rotate(-0.4deg);
+  filter: brightness(1.18);
+  box-shadow: inset 0 -4px 0 #b91c1c, inset 0 0 22px rgba(185, 28, 28, 0.55);
+}
+.btn:active { transform: translateY(0); }
+.btn:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 3px #fecaca, inset 0 -4px 0 #b91c1c;
+}
+
+/* --- Cartes de rôles (boutons image) --- */
+.btn-role-card {
+  position: relative;
+  border-radius: 2px;
+  border: 2px solid rgba(153, 27, 27, 0.80);
+  background: linear-gradient(180deg, rgba(72, 10, 14, 0.60), rgba(20, 8, 12, 0.80));
+  clip-path: polygon(0 5px, 6px 0, 22% 3px, 48% 0, 74% 4px, calc(100% - 8px) 0, 100% 7px, calc(100% - 3px) 55%, 100% calc(100% - 6px), calc(100% - 10px) 100%, 70% calc(100% - 3px), 40% 100%, 16% calc(100% - 4px), 8px 100%, 0 calc(100% - 8px), 3px 45%);
+  box-shadow: inset 0 -4px 0 rgba(127, 29, 29, 0.90), inset 0 0 22px rgba(0, 0, 0, 0.50);
+}
+.btn-role-card img { border: 1px solid rgba(185, 28, 28, 0.55); border-radius: 3px; }
+/* griffures qui apparaissent au survol */
+.btn-role-card::after {
+  content: "";
+  position: absolute;
+  top: 3px; right: 3px;
+  width: 30px; height: 40px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='100' viewBox='0 0 90 100'%3E%3Cdefs%3E%3ClinearGradient id='c' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23e11d1d' stop-opacity='0.95'/%3E%3Cstop offset='1' stop-color='%237f1d1d' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='url(%23c)'%3E%3Cpolygon points='6,0 14,0 38,100'/%3E%3Cpolygon points='30,0 39,0 62,100'/%3E%3Cpolygon points='54,0 63,0 86,100'/%3E%3C/g%3E%3C/svg%3E") no-repeat center / contain;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.btn-role-card:hover {
+  transform: translateY(-3px) rotate(-0.4deg);
+  background: linear-gradient(180deg, rgba(110, 14, 18, 0.70), rgba(34, 8, 12, 0.85));
+  border-color: #ef4444;
+  box-shadow: inset 0 -4px 0 #b91c1c, inset 0 0 26px rgba(185, 28, 28, 0.55);
+}
+.btn-role-card:hover::after { opacity: 0.9; }
+.btn-role-card:focus-visible { outline: none; border-color: #fecaca; }
+
+/* --- Détails assortis --- */
+.tag-list li {
+  background: rgba(80, 10, 14, 0.55);
+  border-color: rgba(185, 28, 28, 0.55);
+  border-radius: 3px;
+}
+.status-btn { border-radius: 3px; }
+input[type="text"] { border-color: rgba(153, 27, 27, 0.6); border-radius: 4px; }
+input[type="text"]:focus { outline-color: #dc2626; }
+.card-back { border-color: rgba(185, 28, 28, 0.7); }
+
+@media (prefers-reduced-motion: reduce) {
+  .btn:hover, .btn-role-card:hover { transform: none; }
+  .btn-role-card::after { transition: none; }
+}
+
+/* =====================================================================
+   THÈME GRIFFURE & SANG — fin
+   ===================================================================== */
+
+/* =====================================================================
+   AJOUTS v22 : appels à usage unique, tour du Voleur, effets en bas
+   ===================================================================== */
+
+/* Boutons d'appel grisés (Voleur / Cupidon une fois appelés) */
+.btn-role-card:disabled,
+.btn-role-card.used {
+  filter: grayscale(1) brightness(0.7);
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.btn-role-card:disabled:hover,
+.btn-role-card.used:hover {
+  transform: none;
+  background: linear-gradient(180deg, rgba(72, 10, 14, 0.60), rgba(20, 8, 12, 0.80));
+  border-color: rgba(153, 27, 27, 0.80);
+  box-shadow: inset 0 -4px 0 rgba(127, 29, 29, 0.90), inset 0 0 22px rgba(0, 0, 0, 0.50);
+}
+.btn-role-card:disabled::after,
+.btn-role-card.used::after { opacity: 0; }
+
+/* Message d'information de la régie (vol de rôle, etc.) */
+.toast.info {
+  background: rgba(24, 10, 14, 0.97);
+  border-color: #b91c1c;
+}
+
+/* Effets sonores : centrés en bas de page */
+.effects-bottom {
+  align-self: center;
+  width: 100%;
+  max-width: 560px;
+  margin-top: 10px;
+}
+.effects-bottom h2 { text-align: center; }
+
+/* Tour du Voleur (téléphone du joueur) */
+.thief-panel {
+  margin: 16px auto 0;
+  padding: 16px;
+  max-width: 420px;
+  border: 2px solid rgba(185, 28, 28, 0.8);
+  border-radius: 6px;
+  background: rgba(40, 8, 12, 0.85);
+  box-shadow: inset 0 0 30px rgba(120, 0, 0, 0.35);
+}
+.thief-panel h3 { margin: 0 0 8px; font-size: 1.3rem; color: #f4dcdc; }
+.thief-panel p { margin: 0 0 12px; color: #cbd5e1; line-height: 1.4; }
+.thief-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.thief-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  color: var(--text-color);
+  background: linear-gradient(180deg, rgba(72, 10, 14, 0.60), rgba(20, 8, 12, 0.85));
+  border: 2px solid rgba(153, 27, 27, 0.85);
+  border-radius: 6px;
+  cursor: pointer;
+  text-align: center;
+  font: inherit;
+}
+.thief-card:hover { border-color: #ef4444; }
+.thief-card:disabled { opacity: 0.5; cursor: not-allowed; }
+.thief-card img {
+  width: 100%;
+  max-height: 190px;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.6);
+}
+.thief-card h4 {
+  margin: 0;
+  font-family: 'Wolf Brothers', 'Segoe UI', sans-serif;
+  font-weight: normal;
+  font-size: 1.4rem;
+  letter-spacing: 1px;
+  color: #f4dcdc;
+}
+.thief-card p { margin: 0; font-size: 0.8rem; line-height: 1.35; color: #cbd5e1; }
+
+/* =====================================================================
+   AJOUTS v25 : rôles uniques, actions sur téléphone, automatisation
+   ===================================================================== */
+
+/* ratio Villageois / Loups-Garous */
+.role-ratio.ok  { color: #86efac; }
+.role-ratio.bad { color: #fca5a5; }
+
+/* Récapitulatif : joueurs morts */
+.mj-table tr.dead .nom-joueur {
+  text-decoration: line-through;
+  text-decoration-color: #b91c1c;
+  text-decoration-thickness: 2px;
+  opacity: 0.55;
+}
+.mj-table tr.dead td:nth-child(2) { opacity: 0.55; }
+
+/* Panneau d'automatisation du MJ */
+.automation { margin-top: 18px; padding-top: 14px; border-top: 1px solid rgba(185, 28, 28, 0.5); }
+.auto-title { margin: 0 0 10px; font-size: 1.1rem; color: #f4dcdc; }
+.auto-block {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  background: rgba(60, 8, 12, 0.45);
+  border: 1px solid rgba(153, 27, 27, 0.55);
+  border-radius: 6px;
+}
+.auto-block p { margin: 4px 0; font-size: 0.9rem; line-height: 1.45; }
+.auto-label { font-weight: 700; color: #f4dcdc; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+.chip {
+  padding: 5px 12px;
+  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 999px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+}
+.chip:hover { border-color: #ef4444; }
+.chip.on { background: #991b1b; border-color: #ef4444; color: #fff; font-weight: 700; }
+.auto-btn {
+  margin-left: 6px;
+  padding: 3px 10px;
+  color: #fff;
+  background: #475569;
+  border: 0;
+  border-radius: 4px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.8rem;
+}
+.auto-btn:hover { background: #64748b; }
+.auto-announce { width: 100%; padding: 12px 16px; font-size: 0.95rem; }
+
+/* Téléphone du joueur : panneaux d'action (même habillage que le tour du Voleur) */
+.action-panel {
+  margin: 16px auto 0;
+  padding: 16px;
+  max-width: 420px;
+  border: 2px solid rgba(185, 28, 28, 0.8);
+  border-radius: 6px;
+  background: rgba(40, 8, 12, 0.85);
+  box-shadow: inset 0 0 30px rgba(120, 0, 0, 0.35);
+}
+.action-panel h3 { margin: 0 0 8px; font-size: 1.3rem; color: #f4dcdc; }
+.action-panel p { margin: 0 0 12px; color: #cbd5e1; line-height: 1.4; }
+.pick-list { display: grid; gap: 8px; margin-bottom: 12px; }
+.pick-btn {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  font-size: 1.15rem;
+  background-color: #334155;
+}
+.pick-btn.selected { background-color: #b91c1c; box-shadow: inset 0 0 0 3px #fecaca; }
+.pick-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.pick-extra { font-family: 'Segoe UI', sans-serif; font-size: 0.85rem; background: rgba(0, 0, 0, 0.45); padding: 2px 8px; border-radius: 999px; }
+.dead-banner {
+  margin: 12px auto 0;
+  max-width: 420px;
+  padding: 12px 14px;
+  color: #fecaca;
+  background: rgba(60, 8, 12, 0.85);
+  border: 2px solid #b91c1c;
+  border-radius: 6px;
+  font-weight: 600;
+}
+.lover-line { margin: 10px 0 0; color: #fda4af; font-weight: 600; }
+
+/* --- Page test (test.html) --- */
+.test-banner {
+  display: inline-block;
+  margin: 6px 0 0;
+  padding: 6px 14px;
+  color: #fff7ed;
+  background: rgba(194, 65, 12, 0.85);
+  border: 1px solid #fdba74;
+  border-radius: 999px;
+  font-weight: 700;
+}
+.test-card { border-top-color: #c2410c; }
+.test-row { display: flex; gap: 10px; margin-top: 12px; flex-wrap: wrap; }
+.test-row .btn { flex: 1 1 200px; }
+.test-row input { flex: 1 1 150px; }
+input[type="number"] {
+  padding: 14px;
+  font-size: 1rem;
+  width: 90px;
+  color: var(--text-color);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(153, 27, 27, 0.6);
+  border-radius: 4px;
+}

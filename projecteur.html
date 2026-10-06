@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <link rel="icon" href="data:,">
+  <title>Loup-Garou - Écran Projecteur</title>
+  <style>
+    /* Police Wolf Brothers */
+    @font-face {
+      font-family: 'Wolf Brothers';
+      src: url('wolfbrothers.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    body, html {
+      margin: 0; padding: 0;
+      width: 100%; height: 100%;
+      background-color: #0b0d14;
+      background-image: radial-gradient(circle at center, rgba(37, 99, 235, 0.15) 0%, rgba(11, 13, 20, 0.95) 100%),
+                        url('https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/fond-village.jpg');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      color: #e2e8f0;
+      overflow: hidden;
+      position: relative;
+    }
+
+    #player {
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    #overlay-video {
+      position: absolute;
+      top: 20px; right: 20px;
+      width: 25%; height: auto;
+      max-height: 40%;
+      border-radius: 8px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8);
+      border: 2px solid rgba(255, 255, 255, 0.3);
+      display: none;
+      z-index: 10;
+      object-fit: cover;
+    }
+
+    /* Appel de personnage : vidéo centrée au format 1728x918p, 50 % de la largeur */
+    #overlay-video.center {
+      top: 50%; left: 50%; right: auto;
+      transform: translate(-50%, -50%);
+      width: 50%; height: auto;
+      aspect-ratio: 1728 / 918;
+      max-height: 90%;
+      box-sizing: border-box;
+      background: #000;
+      object-fit: contain;
+    }
+
+
+    /* ÉCRAN D'ATTENTE DE DEBUT DE PARTIE (QR CODE + LISTE DES JOUEURS) */
+    #waiting-screen {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      z-index: 5;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 40px;
+      box-sizing: border-box;
+    }
+
+    .projector-title {
+      font-family: 'Wolf Brothers', sans-serif;
+      font-size: 3rem;
+      color: #f4dcdc;
+      margin-bottom: 30px;
+      text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 0 16px rgba(185, 28, 28, 0.5);
+      letter-spacing: 2px;
+      text-align: center;
+    }
+
+    .lobby-container {
+      display: flex;
+      gap: 50px;
+      align-items: stretch;
+      max-width: 1100px;
+      width: 90%;
+    }
+
+    /* CARTE DU THÈME GRIFFURE & SANG */
+    .blood-card {
+      position: relative;
+      background: linear-gradient(180deg, rgba(42, 9, 12, 0.92), rgba(17, 10, 16, 0.95));
+      border: 1px solid rgba(127, 29, 29, 0.75);
+      border-top: 3px solid #7f1d1d;
+      border-radius: 8px;
+      padding: 24px;
+      box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), inset 0 0 40px rgba(120, 0, 0, 0.25);
+    }
+
+    .blood-card::before {
+      content: "";
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 30px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='30' viewBox='0 0 240 30'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%234a0505'/%3E%3Cstop offset='1' stop-color='%23c21f1f'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='url(%23g)'%3E%3Crect x='0' y='0' width='240' height='4'/%3E%3Cpath d='M14 0h7v10a3.5 3.5 0 0 1-7 0z'/%3E%3Cpath d='M52 0h8v20a4 4 0 0 1-8 0z'/%3E%3Cpath d='M96 0h6v7a3 3 0 0 1-6 0z'/%3E%3Cpath d='M130 0h7v15a3.5 3.5 0 0 1-7 0z'/%3E%3Cpath d='M170 0h9v25a4.5 4.5 0 0 1-9 0z'/%3E%3Cpath d='M210 0h6v12a3 3 0 0 1-6 0z'/%3E%3C/g%3E%3C/svg%3E") repeat-x left top;
+      pointer-events: none;
+    }
+
+    .blood-card::after {
+      content: "";
+      position: absolute;
+      top: 8px; right: 12px;
+      width: 50px; height: 60px;
+      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='90' height='100' viewBox='0 0 90 100'%3E%3Cdefs%3E%3ClinearGradient id='c' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23e11d1d' stop-opacity='0.95'/%3E%3Cstop offset='1' stop-color='%237f1d1d' stop-opacity='0'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cg fill='url(%23c)'%3E%3Cpolygon points='6,0 14,0 38,100'/%3E%3Cpolygon points='30,0 39,0 62,100'/%3E%3Cpolygon points='54,0 63,0 86,100'/%3E%3C/g%3E%3C/svg%3E") no-repeat center / contain;
+      opacity: 0.55;
+      pointer-events: none;
+    }
+
+    .qr-box {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+    }
+
+    .qr-code-img {
+      background: #ffffff;
+      padding: 14px;
+      border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.8);
+      margin-bottom: 15px;
+    }
+
+    .qr-box p {
+      margin: 6px 0;
+      color: #cbd5e1;
+      font-size: 1.1rem;
+    }
+
+    .room-code-badge {
+      font-family: 'Wolf Brothers', sans-serif;
+      font-size: 2.2rem;
+      color: #ef4444;
+      letter-spacing: 3px;
+    }
+
+    .players-box {
+      flex: 1.2;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .players-box h3 {
+      font-family: 'Wolf Brothers', sans-serif;
+      font-size: 1.8rem;
+      margin: 0 0 15px 0;
+      color: #f4dcdc;
+      letter-spacing: 1px;
+      border-bottom: 2px solid #7f1d1d;
+      padding-bottom: 8px;
+    }
+
+    .players-list {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+      gap: 12px;
+      max-height: 280px;
+      overflow-y: auto;
+    }
+
+    .players-list li {
+      background: rgba(80, 10, 14, 0.7);
+      border: 1px solid rgba(185, 28, 28, 0.6);
+      border-radius: 4px;
+      padding: 8px 12px;
+      font-family: 'Wolf Brothers', sans-serif;
+      font-size: 1.2rem;
+      letter-spacing: 1px;
+      color: #fca5a5;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Le lecteur YouTube reste invisible tant qu'aucune scène n'est lancée (création de la partie) */
+    #player { visibility: hidden; }
+
+    /* QR code permanent en bas à droite : retrouver sa place en cours de partie */
+    #mini-qr {
+      position: fixed;
+      right: 2vmin; bottom: 2vmin;
+      z-index: 25;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.8vmin;
+      padding: 1vmin;
+      background: rgba(255, 255, 255, 0.96);
+      border: 0.4vmin solid #7f1d1d;
+      border-radius: 1vmin;
+      box-shadow: 0 0.6vmin 2vmin rgba(0, 0, 0, 0.8);
+    }
+    #mini-qr .mini-qr-code { line-height: 0; }
+    #mini-qr .mini-qr-label {
+      font-family: 'Segoe UI', Tahoma, sans-serif;
+      font-size: 1.5vmin;
+      font-weight: 700;
+      color: #450a0a;
+      text-align: center;
+    }
+
+    /* Vidéos d'annonce (loups, poison, vote) : plein écran, sans recadrage */
+    #event-video {
+      position: fixed;
+      inset: 0;
+      width: 100%; height: 100%;
+      z-index: 30;
+      display: none;
+      background: #000;
+      object-fit: contain;
+    }
+
+    /* ANNONCE DE MORT : nom en grand + griffures de loup par-dessus */
+    #death-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 40;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: radial-gradient(circle at center, rgba(60, 4, 8, 0.80) 0%, rgba(0, 0, 0, 0.94) 100%);
+      opacity: 1;
+      transition: opacity 0.6s ease;
+      cursor: pointer;
+    }
+    #death-overlay.over-video { background: radial-gradient(circle at center, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.55) 100%); }
+    #death-overlay.out { opacity: 0; }
+    #death-list { display: flex; flex-direction: column; align-items: center; gap: 5vh; max-width: 92vw; }
+    .death-item { position: relative; padding: 2vh 5vw; text-align: center; }
+    .death-name {
+      --len: 8;
+      font-family: 'Wolf Brothers', 'Segoe UI', sans-serif;
+      font-size: min(16vh, calc(170vw / var(--len)));
+      line-height: 1;
+      letter-spacing: 0.5vh;
+      white-space: nowrap;
+      color: #f4dcdc;
+      text-shadow: 0 0 3vh rgba(220, 38, 38, 0.75), 0 0.6vh 1.4vh #000;
+      animation: deathNameIn 0.45s ease-out both;
+    }
+    .death-sub { margin-top: 1.5vh; font-size: 3.4vh; color: #fca5a5; text-shadow: 0 0.3vh 0.8vh #000; }
+    .death-claws {
+      position: absolute;
+      left: -2%; top: -12%;
+      width: 104%; height: 124%;
+      pointer-events: none;
+      overflow: visible;
+      filter: drop-shadow(0 0.5vh 1vh rgba(0, 0, 0, 0.9));
+    }
+    .claw {
+      transform-box: fill-box;
+      transform-origin: 50% 0;
+      transform: scaleY(0);
+      animation: clawIn 0.28s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+    }
+    .claw.c1 { animation-delay: 0.35s; }
+    .claw.c2 { animation-delay: 0.50s; }
+    .claw.c3 { animation-delay: 0.65s; }
+    @keyframes clawIn { to { transform: scaleY(1); } }
+    @keyframes deathNameIn {
+      from { opacity: 0; transform: scale(1.15); filter: blur(1vh); }
+      to   { opacity: 1; transform: none; filter: none; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      .claw { animation: none; transform: scaleY(1); }
+      .death-name { animation: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ÉCRAN DE SALON D'ATTENTE -->
+  <div id="waiting-screen">
+    <div class="projector-title">🌐 Rejoindre la Partie</div>
+    <div class="lobby-container">
+      
+      <!-- Colonne Gauche : QR Code -->
+      <div class="blood-card qr-box">
+        <div id="qr-code-target" class="qr-code-img"></div>
+        <p>Scannez pour rejoindre</p>
+        <div class="room-code-badge">CODE : <span id="room-code-text">----</span></div>
+      </div>
+
+      <!-- Colonne Droite : Liste des Joueurs -->
+      <div class="blood-card players-box">
+        <h3>👥 Joueurs présents (<span id="player-count">0</span>)</h3>
+        <ul id="player-list-target" class="players-list">
+          <li style="color: #94a3b8; font-family: sans-serif; font-size: 0.9rem;">En attente de joueurs...</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+
+  <div id="player"></div>
+  <video id="overlay-video" playsinline></video>
+
+  <!-- QR code permanent (reconnexion en cours de partie) -->
+  <div id="mini-qr">
+    <div id="mini-qr-code" class="mini-qr-code"></div>
+    <div class="mini-qr-label">Retrouve ta place<br>en scannant</div>
+  </div>
+
+  <!-- Vidéos d'annonce + noms des joueurs -->
+  <video id="event-video" playsinline></video>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <linearGradient id="deathClaw" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stop-color="#ef4444"/>
+        <stop offset="1" stop-color="#7f1d1d"/>
+      </linearGradient>
+    </defs>
+  </svg>
+  <div id="death-overlay"><div id="death-list"></div></div>
+
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="https://www.youtube.com/iframe_api"></script>
+
+  <script>
+    console.info('Projecteur - version 25');
+    let ytPlayer = null;
+    let ytReady = false;
+    let pendingVideoId = null;
+    let pendingLoop = true;
+    let loopScene = true;       // false pour la vidéo de présentation
+    let targetVolume = 100;
+    let fadeInterval = null;
+    const overlayVideo = document.getElementById('overlay-video');
+    const waitingScreen = document.getElementById('waiting-screen');
+    let currentQrUrl = null;
+
+    function hideWaitingScreen() {
+      if (waitingScreen) {
+        waitingScreen.style.display = 'none';
+      }
+    }
+
+    // mode : 'center' (appel de personnage, 50 %, 1728x918), 'full' (plein écran sans recadrage), sinon petite incrustation
+    function setOverlayMode(mode) {
+      const st = overlayVideo.style;
+      ['top', 'left', 'right', 'bottom', 'transform', 'width', 'height', 'aspect-ratio', 'max-height',
+       'box-sizing', 'background', 'object-fit', 'border', 'border-radius', 'box-shadow']
+        .forEach((prop) => st.removeProperty(prop));
+      overlayVideo.classList.toggle('center', mode === 'center');
+      const imp = (k, v) => st.setProperty(k, v, 'important');
+
+      if (mode === 'center') {
+        imp('top', '50%'); imp('left', '50%'); imp('right', 'auto');
+        imp('transform', 'translate(-50%, -50%)');
+        imp('width', '50%'); imp('height', 'auto');
+        imp('aspect-ratio', '1728 / 918');
+        imp('max-height', '90%'); imp('box-sizing', 'border-box');
+        imp('background', '#000'); imp('object-fit', 'contain');
+      } else if (mode === 'full') {
+        imp('top', '0'); imp('left', '0'); imp('right', '0'); imp('bottom', '0');
+        imp('transform', 'none');
+        imp('width', '100%'); imp('height', '100%'); imp('max-height', 'none');
+        imp('object-fit', 'contain'); imp('background', '#000');
+        imp('border', '0'); imp('border-radius', '0'); imp('box-shadow', 'none');
+      }
+    }
+
+    function hideOverlay() {
+      overlayVideo.pause();
+      overlayVideo.style.display = 'none';
+      setOverlayMode(null);
+      overlayVideo.removeAttribute('src');
+      overlayVideo.load();
+    }
+
+    function onYouTubeIframeAPIReady() {
+      ytPlayer = new YT.Player('player', {
+        playerVars: {
+          autoplay: 1, controls: 0, rel: 0, modestbranding: 1,
+          playsinline: 1, disablekb: 1, iv_load_policy: 3
+        },
+        events: {
+          onReady: () => {
+            ytReady = true;
+            if (pendingVideoId) { playScene(pendingVideoId, pendingLoop); pendingVideoId = null; }
+            if (window.opener) window.opener.postMessage({ action: 'projectorReady' }, '*');
+          },
+          onStateChange: (event) => {
+            if (event.data === YT.PlayerState.ENDED) {
+              if (loopScene) {
+                ytPlayer.seekTo(0, true);
+                ytPlayer.playVideo();
+              } else {
+                // fin de la présentation : on laisse apparaître le fond du village
+                document.getElementById('player').style.visibility = 'hidden';
+              }
+            }
+          }
+        }
+      });
+    }
+
+    function playScene(videoId, loop = true) {
+      loopScene = loop;
+      document.getElementById('player').style.visibility = 'visible';
+      hideWaitingScreen();
+      hideOverlay();
+      ytPlayer.loadVideoById(videoId);
+      ytPlayer.setVolume(targetVolume);
+      ytPlayer.playVideo();
+    }
+
+    function fadeVolumeTo(target01, durationMs = 600) {
+      targetVolume = Math.max(0, Math.min(100, target01 * 100));
+      if (!ytReady) return;
+      clearInterval(fadeInterval);
+
+      const startVolume = ytPlayer.getVolume();
+      const distance = targetVolume - startVolume;
+      const steps = 30;
+      const stepTime = durationMs / steps;
+      let currentStep = 0;
+
+      fadeInterval = setInterval(() => {
+        currentStep++;
+        ytPlayer.setVolume(Math.max(0, Math.min(100, startVolume + distance * (currentStep / steps))));
+        if (currentStep >= steps) {
+          ytPlayer.setVolume(targetVolume);
+          clearInterval(fadeInterval);
+        }
+      }, stepTime);
+    }
+
+
+    // --- ANNONCE DE MORT (nom en grand + griffures) ---
+    let deathTimer = null;
+    let eventActive = false;
+    let eventTimer = null;
+    const eventVideo = document.getElementById('event-video');
+    const CLAWS_SVG =
+      '<svg class="death-claws" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' +
+      '<polygon class="claw c1" points="12,-8 22,-8 50,108 46,108" fill="url(#deathClaw)"/>' +
+      '<polygon class="claw c2" points="38,-8 48,-8 76,108 72,108" fill="url(#deathClaw)"/>' +
+      '<polygon class="claw c3" points="64,-8 74,-8 102,108 98,108" fill="url(#deathClaw)"/></svg>';
+
+    function hideDeaths() {
+      const overlay = document.getElementById('death-overlay');
+      clearTimeout(deathTimer);
+      overlay.classList.add('out');
+      setTimeout(() => { if (overlay.classList.contains('out')) overlay.style.display = 'none'; }, 600);
+    }
+
+    function showDeaths(deaths, opts = {}) {
+      const overlay = document.getElementById('death-overlay');
+      const list = document.getElementById('death-list');
+      list.innerHTML = '';
+      (deaths || []).forEach((d) => {
+        const item = document.createElement('div');
+        item.className = 'death-item';
+
+        const name = document.createElement('div');
+        name.className = 'death-name';
+        name.style.setProperty('--len', Math.max(String(d.name).length, 4));
+        name.textContent = d.name;            // textContent : pas d'injection HTML
+        item.appendChild(name);
+
+        if (d.love) {
+          const sub = document.createElement('div');
+          sub.className = 'death-sub';
+          sub.textContent = '💔 ne survit pas à la perte de son amoureux(se)';
+          item.appendChild(sub);
+        }
+        item.insertAdjacentHTML('beforeend', CLAWS_SVG);
+        list.appendChild(item);
+      });
+      overlay.classList.toggle('over-video', !!opts.overVideo);
+      overlay.classList.remove('out');
+      overlay.style.display = 'flex';
+      clearTimeout(deathTimer);
+      if (opts.autoHide !== false) deathTimer = setTimeout(hideDeaths, 7500);
+    }
+
+    document.getElementById('death-overlay').addEventListener('click', () => {
+      if (eventActive) endEvent(); else hideDeaths();
+    });
+
+    // --- VIDÉOS D'ANNONCE (loups, empoisonnement, vote) : plein écran + noms par-dessus ---
+    function endEvent() {
+      clearTimeout(eventTimer);
+      if (!eventActive) return;
+      eventActive = false;
+      eventVideo.pause();
+      eventVideo.style.display = 'none';
+      eventVideo.removeAttribute('src');
+      eventVideo.load();
+      hideDeaths();
+      if (ytReady) ytPlayer.setVolume(targetVolume);   // on rend le son à la scène
+    }
+
+    function playEvent(data) {
+      endEvent();
+      hideOverlay();
+      eventActive = true;
+      if (ytReady) ytPlayer.setVolume(Math.min(targetVolume, 10));   // la scène passe au second plan
+
+      const showNames = () => showDeaths(data.deaths, { overVideo: true, autoHide: false });
+      eventVideo.onended = () => {
+        if (data.namesAt === 'end') showNames();
+        eventTimer = setTimeout(endEvent, data.namesAt === 'end' ? 9000 : 6000);
+      };
+      eventVideo.onerror = () => {            // vidéo introuvable : on affiche quand même les noms
+        showNames();
+        eventTimer = setTimeout(endEvent, 9000);
+      };
+
+      eventVideo.src = data.url;
+      eventVideo.style.display = 'block';
+      eventVideo.currentTime = 0;
+      eventVideo.play().catch((err) => console.error('Erreur vidéo d\'annonce :', err));
+      if (data.namesAt === 'start') showNames();
+    }
+
+    // --- QR CODE PERMANENT (en bas à droite) ---
+    let miniQrUrl = null;
+    function renderMiniQr(url) {
+      if (!url || typeof QRCode === 'undefined') return;
+      const box = document.getElementById('mini-qr');
+      const target = document.getElementById('mini-qr-code');
+      const size = Math.round(Math.min(window.innerWidth, window.innerHeight) * 0.12);
+      target.innerHTML = '';
+      new QRCode(target, { text: url, width: size, height: size });
+      box.style.display = 'flex';
+      miniQrUrl = url;
+    }
+    window.addEventListener('resize', () => { if (miniQrUrl) renderMiniQr(miniQrUrl); });
+
+    // le projecteur prévient la régie dès qu'il est chargé (affichage immédiat du salon)
+    if (window.opener) window.opener.postMessage({ action: 'projectorReady' }, '*');
+
+    // Pas de bouton : un simple clic dans cette fenêtre lève un éventuel blocage du son
+    window.addEventListener('click', () => {
+      if (ytReady) { ytPlayer.unMute(); ytPlayer.setVolume(targetVolume); }
+    });
+
+    window.addEventListener('message', (event) => {
+      if (event.source !== window.opener) return;
+      const data = event.data;
+      if (!data || !data.action) return;
+
+      switch (data.action) {
+        case 'updateLobby':
+          document.getElementById('room-code-text').textContent = data.roomCode || '----';
+          if (data.joinUrl && data.joinUrl !== currentQrUrl) {
+            const qrTarget = document.getElementById('qr-code-target');
+            qrTarget.innerHTML = '';
+            new QRCode(qrTarget, { text: data.joinUrl, width: 160, height: 160 });
+            currentQrUrl = data.joinUrl;
+          }
+          if (data.joinUrl && data.joinUrl !== miniQrUrl) renderMiniQr(data.joinUrl);
+          const pList = document.getElementById('player-list-target');
+          document.getElementById('player-count').textContent = data.players ? data.players.length : 0;
+          if (data.players && data.players.length > 0) {
+            pList.innerHTML = '';
+            data.players.forEach((pl) => {
+              const li = document.createElement('li');
+              li.textContent = (pl.connected === false ? '📴 ' : '🟢 ') + pl.name;
+              pList.appendChild(li);
+            });
+          } else {
+            pList.innerHTML = '<li style="color: #94a3b8; font-family: sans-serif; font-size: 0.9rem;">En attente de joueurs...</li>';
+          }
+          break;
+
+        case 'announceDeath':
+          showDeaths(data.deaths);
+          break;
+
+        case 'eventVideo':
+          playEvent(data);
+          break;
+
+        case 'playYTVideo':
+          hideWaitingScreen();
+          if (ytReady) playScene(data.videoId, data.loop !== false);
+          else { pendingVideoId = data.videoId; pendingLoop = data.loop !== false; }
+          break;
+
+        case 'playOverlayVideo':
+          hideWaitingScreen();
+          setOverlayMode(data.mode);
+          overlayVideo.src = data.url;
+          overlayVideo.loop = true;
+          overlayVideo.style.display = 'block';
+          overlayVideo.play().catch((err) => console.error("Erreur overlay :", err));
+          break;
+
+        case 'stopOverlayVideo':
+          hideOverlay();
+          break;
+
+        case 'stop':
+          if (ytReady) ytPlayer.stopVideo();
+          document.getElementById('player').style.visibility = 'hidden';
+          hideOverlay();
+          endEvent();
+          break;
+
+        case 'togglePause':
+          if (ytReady) {
+            const state = ytPlayer.getPlayerState();
+            if (state === YT.PlayerState.PLAYING) ytPlayer.pauseVideo();
+            else if (state === YT.PlayerState.PAUSED) ytPlayer.playVideo();
+          }
+          if (overlayVideo.hasAttribute('src')) {
+            if (overlayVideo.paused) overlayVideo.play().catch(() => {});
+            else overlayVideo.pause();
+          }
+          break;
+
+        case 'setVolume':
+          fadeVolumeTo(data.volume, data.duration || 600);
+          break;
+      }
+    });
+  </script>
+</body>
+</html>

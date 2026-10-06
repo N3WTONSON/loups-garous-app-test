@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="icon" href="data:,">
+  <title>Loup-Garou - Téléphones simulés</title>
+  <style>
+    body { margin: 0; padding: 16px; font-family: 'Segoe UI', Tahoma, sans-serif; background: #0b0d14; color: #e2e8f0; }
+    header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin-bottom: 14px; }
+    h1 { margin: 0; font-size: 1.2rem; }
+    .hint { color: #94a3b8; font-size: 0.85rem; margin: 0; }
+    button { font: inherit; padding: 6px 12px; color: #fff; background: #475569; border: 0; border-radius: 6px; cursor: pointer; }
+    button:hover { filter: brightness(1.2); }
+    button.on { background: #15803d; }
+    #phones { display: flex; flex-wrap: wrap; gap: 18px; align-items: flex-start; }
+    .phone { width: 372px; }
+    .phone-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+    .phone-name { font-weight: 700; margin-right: auto; }
+    .phone-state { font-size: 0.8rem; color: #94a3b8; }
+    .phone-bar button { padding: 3px 8px; font-size: 0.8rem; }
+    .phone iframe {
+      display: block;
+      width: 372px; height: 660px;
+      border: 10px solid #111827;
+      border-radius: 30px;
+      background: #000;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+    }
+    .phone.dead iframe { filter: grayscale(0.6); }
+    #empty { color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📱 Téléphones des joueurs (simulation)</h1>
+    <button id="all-auto" onclick="toggleAllAuto()">🤖 Tout en auto : NON</button>
+    <p class="hint">Chaque téléphone fonctionne comme celui d'un vrai joueur. « Auto » joue au hasard à sa place.</p>
+  </header>
+  <div id="phones"></div>
+  <p id="empty">Aucun téléphone. Ajoutez des joueurs depuis la page test.</p>
+
+  <script>
+    const grid = document.getElementById('phones');
+    const phones = new Map();   // id -> { id, name, iframe, simConn, auto, offline, el, state }
+    const stores = new Map();
+    let allAuto = false;
+    let packTarget = null;      // victime commune choisie par les loups « auto »
+
+    const test = () => { try { return window.opener && !window.opener.closed ? window.opener.LG_TEST : null; } catch (e) { return null; } };
+    const rnd = (a) => a[Math.floor(Math.random() * a.length)];
+    const shuffle = (a) => { const r = [...a]; for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; } return r; };
+    const baseDelay = () => (window.LG_BOT_DELAY !== undefined ? window.LG_BOT_DELAY : 700 + Math.random() * 1300);
+
+    // ----- pont avec la régie -----
+    window.LG_SIM = {
+      storage(id) { id = String(id); if (!stores.has(id)) stores.set(id, {}); return stores.get(id); },
+      registerPhone(id, simConn) {
+        id = String(id);
+        const ph = phones.get(id), t = test();
+        if (!ph || ph.offline || !t) return false;
+        ph.simConn = simConn;
+        t.attach(id);
+        return true;
+      },
+      fromPhone(id, msg) {
+        const t = test();
+        if (t) setTimeout(() => t.fromPhone(String(id), JSON.parse(JSON.stringify(msg))), 0);
+      },
+      toPhone(id, msg) {
+        const ph = phones.get(String(id));
+        if (!ph) return;
+        setTimeout(() => {
+          if (ph.simConn && ph.simConn.open) ph.simConn.emit('data', msg);
+          autoReact(ph, msg);
+        }, 0);
+      },
+      addPhone, removePhone, setAllAuto, hasPhone: (id) => phones.has(String(id))
+    };
+
+    // ----- gestion des téléphones -----
+    function addPhone(id, name) {
+      id = String(id);
+      if (phones.has(id)) return;
+      const el = document.createElement('div');
+      el.className = 'phone';
+      el.innerHTML = `
+        <div class="phone-bar">
+          <span class="phone-name"></span>
+          <span class="phone-state">…</span>
+          <button data-a="auto">🤖 Auto</button>
+          <button data-a="offline">📴 Couper</button>
+          <button data-a="reload">↻</button>
+          <button data-a="remove">✖</button>
+        </div>`;
+      el.querySelector('.phone-name').textContent = name;
+      const iframe = document.createElement('iframe');
+      iframe.src = `joueur.html?sim=${encodeURIComponent(id)}&room=TEST&name=${encodeURIComponent(name)}`;
+      iframe.title = 'Téléphone de ' + name;
+      el.appendChild(iframe);
+      grid.appendChild(el);
+
+      const ph = { id, name, iframe, el, simConn: null, auto: allAuto, offline: false };
+      phones.set(id, ph);
+      el.querySelector('[data-a="auto"]').classList.toggle('on', ph.auto);
+      el.addEventListener('click', (e) => {
+        const a = e.target.dataset && e.target.dataset.a;
+        if (a === 'auto') { ph.auto = !ph.auto; e.target.classList.toggle('on', ph.auto); }
+        else if (a === 'offline') setOffline(ph, !ph.offline, e.target);
+        else if (a === 'reload') iframe.contentWindow.location.reload();
+        else if (a === 'remove') removePhone(id);
+      });
+      document.getElementById('empty').style.display = 'none';
+    }
+
+    function setOffline(ph, off, btn) {
+      ph.offline = off;
+      if (btn) btn.textContent = off ? '🔌 Reconnecter' : '📴 Couper';
+      if (off) {
+        if (ph.simConn) { ph.simConn.open = false; ph.simConn.emit('close'); }
+        const t = test(); if (t) t.detach(ph.id);
+      }
+    }
+
+    function removePhone(id) {
+      id = String(id);
+      const ph = phones.get(id);
+      if (!ph) return;
+      const t = test();
+      if (t) t.removePlayer(ph.id, ph.name);
+      ph.el.remove();
+      phones.delete(id);
+      if (!phones.size) document.getElementById('empty').style.display = '';
+    }
+
+    function setAllAuto(on) {
+      allAuto = on;
+      phones.forEach((ph) => { ph.auto = on; ph.el.querySelector('[data-a="auto"]').classList.toggle('on', on); });
+      const b = document.getElementById('all-auto');
+      b.textContent = '🤖 Tout en auto : ' + (on ? 'OUI' : 'NON');
+      b.classList.toggle('on', on);
+      const t = test(); if (t && t.autoChanged) t.autoChanged(on);
+    }
+    function toggleAllAuto() { setAllAuto(!allAuto); }
+
+    // ----- « Auto » : joue au hasard comme le ferait un joueur -----
+    function autoReact(ph, msg) {
+      if (!ph.auto) return;
+      const send = (m, at) => setTimeout(() => window.LG_SIM.fromPhone(ph.id, m), at);
+      const d = baseDelay();
+      switch (msg.type) {
+        case 'thiefTurn':
+          if (!msg.options.length || Math.random() < 0.2) send({ type: 'thiefSteal', skip: true }, d);
+          else send({ type: 'thiefSteal', choice: Math.floor(Math.random() * msg.options.length) }, d);
+          break;
+        case 'cupidTurn':
+          send({ type: 'cupidChoice', names: shuffle(msg.names).slice(0, 2) }, d);
+          break;
+        case 'wolfTurn': {
+          if (msg.final || !msg.targets.length) break;
+          const t = (packTarget && msg.targets.includes(packTarget) && Math.random() < 0.75) ? packTarget : rnd(msg.targets);
+          if (!packTarget) packTarget = t;
+          send({ type: 'wolfVote', target: t }, d);
+          send({ type: 'wolfFinal' }, d + 900);
+          break;
+        }
+        case 'wolfDone': packTarget = null; break;
+        case 'witchTurn': {
+          const save = !!msg.canSave && Math.random() < 0.5;
+          const poison = (msg.canPoison && msg.targets.length && Math.random() < 0.4) ? rnd(msg.targets) : null;
+          send({ type: 'witchAction', save, poison }, d);
+          break;
+        }
+        case 'voteTurn':
+          if (!msg.myVote && msg.targets.length) send({ type: 'villageVote', target: rnd(msg.targets) }, d);
+          break;
+      }
+    }
+
+    // ----- état affiché sur chaque téléphone -----
+    setInterval(() => {
+      const t = test();
+      if (!t) return;
+      phones.forEach((ph) => {
+        const info = t.info(ph.name);
+        let txt = '…';
+        if (info.exists) txt = !info.connected ? '📴 hors ligne' : (info.alive ? '🟢 en ligne' : '💀 éliminé');
+        ph.el.querySelector('.phone-state').textContent = txt;
+        ph.el.classList.toggle('dead', info.exists && !info.alive);
+      });
+    }, 1000);
+
+    // prévient la régie que la fenêtre est prête (elle ajoutera les téléphones en attente)
+    const t0 = test();
+    if (t0) t0.phonesReady(window);
+  </script>
+</body>
+</html>
