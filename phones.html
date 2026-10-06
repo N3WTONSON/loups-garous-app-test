@@ -29,6 +29,8 @@
     }
     .phone.dead iframe { filter: grayscale(0.6); }
     #empty { color: #94a3b8; }
+    #warn { display: none; width: 100%; padding: 8px 12px; background: #7f1d1d; border: 1px solid #f87171; border-radius: 6px; }
+    .phone-problem { color: #fca5a5; font-size: 0.8rem; margin: 0 0 6px; }
   </style>
 </head>
 <body>
@@ -36,6 +38,7 @@
     <h1>📱 Téléphones des joueurs (simulation)</h1>
     <button id="all-auto" onclick="toggleAllAuto()">🤖 Tout en auto : NON</button>
     <p class="hint">Chaque téléphone fonctionne comme celui d'un vrai joueur. « Auto » joue au hasard à sa place.</p>
+    <div id="warn">⚠️ La page test n'est plus ouverte : rouvrez-la pour que les téléphones fonctionnent.</div>
   </header>
   <div id="phones"></div>
   <p id="empty">Aucun téléphone. Ajoutez des joueurs depuis la page test.</p>
@@ -100,7 +103,17 @@
       el.appendChild(iframe);
       grid.appendChild(el);
 
-      const ph = { id, name, iframe, el, simConn: null, auto: allAuto, offline: false };
+      // le fichier sim-peer.js doit être présent sur le site : sinon le téléphone chercherait un vrai salon
+      iframe.addEventListener('load', () => {
+        try {
+          const P = iframe.contentWindow.Peer;
+          if (!P || P.name !== 'SimPeer') {
+            ph.problem = '⚠️ sim-peer.js introuvable sur le site (uploadez-le à la racine, à côté de joueur.html)';
+          }
+        } catch (e) { ph.problem = '⚠️ ' + e.message; }
+      });
+
+      const ph = { id, name, iframe, el, simConn: null, auto: allAuto, offline: false, created: Date.now(), problem: '' };
       phones.set(id, ph);
       el.querySelector('[data-a="auto"]').classList.toggle('on', ph.auto);
       el.addEventListener('click', (e) => {
@@ -180,12 +193,21 @@
     // ----- état affiché sur chaque téléphone -----
     setInterval(() => {
       const t = test();
+      document.getElementById('warn').style.display = t ? 'none' : 'block';
       if (!t) return;
       phones.forEach((ph) => {
         const info = t.info(ph.name);
         let txt = '…';
         if (info.exists) txt = !info.connected ? '📴 hors ligne' : (info.alive ? '🟢 en ligne' : '💀 éliminé');
+        else if (Date.now() - ph.created > 6000) txt = '⚠️ n\'a pas rejoint';
         ph.el.querySelector('.phone-state').textContent = txt;
+        let prob = ph.el.querySelector('.phone-problem');
+        if (ph.problem && !prob) {
+          prob = document.createElement('p');
+          prob.className = 'phone-problem';
+          ph.el.insertBefore(prob, ph.iframe);
+        }
+        if (prob) prob.textContent = ph.problem;
         ph.el.classList.toggle('dead', info.exists && !info.alive);
       });
     }, 1000);

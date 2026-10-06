@@ -303,6 +303,26 @@
       });
     })();
   </script>
+  <script>
+    // Vérifie que tous les fichiers nécessaires au mode test sont bien sur le site
+    window.addEventListener('load', async () => {
+      const need = ['script.js', 'player.js', 'test-tools.js', 'sim-peer.js', 'phones.html', 'joueur.html', 'style.css'];
+      const missing = [];
+      await Promise.all(need.map(async (f) => {
+        try {
+          const r = await fetch(f, { method: 'HEAD', cache: 'no-store' });
+          if (!r.ok) missing.push(f);
+        } catch (e) { missing.push(f); }
+      }));
+      const card = document.getElementById('test-card');
+      if (missing.length && card) {
+        const p = document.createElement('p');
+        p.className = 'error-message';
+        p.textContent = '⚠️ Fichiers introuvables sur le site : ' + missing.join(', ') + ' — uploadez-les à la racine du dépôt (à côté de test.html).';
+        card.insertBefore(p, card.children[1]);
+      }
+    });
+  </script>
   <script>window.LG_TEST_MODE = true;</script>
   <script src="script.js?v=26"></script>
   <script src="test-tools.js?v=26"></script>
