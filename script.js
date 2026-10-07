@@ -1,4 +1,4 @@
-const VERSION_APP = "77";
+const VERSION_APP = "79";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=77', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=79', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -2412,6 +2412,7 @@ function gateSuccession(next) {
   const dead = successionPending ? findPlayer(successionPending) : null;
   if (!dead || !dead.connected || !projectorOpen()) return false;   // injoignable : on ne bloque pas la partie
   afterSuccession = next;
+  setPhase('day');   // passation : la scène de nuit s'arrête, vidéo de jour en fond
   sendToProjector({ action: 'hunterWaiting', name: dead.name, role: 'Maire', sub: '👑 Le Maire est mort : il doit transmettre son rôle de Maire à un joueur encore en vie' });
   return true;
 }

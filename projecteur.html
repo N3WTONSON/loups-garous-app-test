@@ -432,7 +432,7 @@
   </style>
 </head>
 <body>
-  <script src="bg.js?v=77"></script>
+  <script src="bg.js?v=79"></script>
 
   <!-- ÉCRAN DE SALON D'ATTENTE -->
   <div id="waiting-screen">
@@ -504,7 +504,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 77');
+    console.info('Projecteur - version 79');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -802,6 +802,9 @@
     // --- ATTENTE DU CHASSEUR : sa carte carrée + son nom ---
     function showHunterWait(name, role, sub) {
       if (window.setBgPhase) setBgPhase('day');
+      if (ytReady) ytPlayer.stopVideo();                            // la vidéo YouTube de nuit s'arrête : place à la vidéo de jour
+      document.getElementById('player').style.visibility = 'hidden';
+      hideWaitingScreen();
       role = role || 'Chasseur';
       document.getElementById('hw-role').textContent = role;
       document.getElementById('hw-sub').textContent = sub || '🏹 Il choisit sa cible pour son dernier tir…';
@@ -1090,7 +1093,16 @@
           overlayVideo.loop = data.loop !== false;   // false : lue une seule fois (ex. Maire)
           overlayVideo.style.display = 'block';
           fadeInVideo(overlayVideo, FADE_IN_MS, String(data.url).includes('Maire.mp4') ? 1.0 : MAX_VOLUME);   // la vidéo du Maire est un peu plus forte
-          overlayVideo.play().catch((err) => console.error("Erreur overlay :", err));
+          overlayVideo.muted = false;
+          overlayVideo.play().catch((err) => {
+            console.error("Erreur overlay :", err);
+            if (err && err.name === 'NotAllowedError') {      // son bloqué par le navigateur : la vidéo démarre quand même, muette (un clic active le son)
+              soundBlocked = true;
+              showSoundUnlock();
+              overlayVideo.muted = true;
+              overlayVideo.play().catch(() => {});
+            }
+          });
           break;
 
         case 'stopOverlayVideo':
