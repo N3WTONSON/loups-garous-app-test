@@ -1,4 +1,4 @@
-const VERSION_APP = "46";
+const VERSION_APP = "47";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -140,7 +140,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=46', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=47', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -175,6 +175,7 @@ function generateRoomCode() {
 }
 
 function initHost(attempt = 0) {
+  startLobbyMusic();                // lancée dans le clic « Créer un Salon » : le navigateur autorise la lecture
   if (peer && !peer.destroyed) peer.destroy();
   roomCode = generateRoomCode();
   peer = new Peer("LG-" + roomCode);
@@ -649,7 +650,7 @@ function bindMusicRetry() {
   musicRetryBound = true;
   document.addEventListener('click', () => {      // lecture refusée (pas encore de clic) : on réessaie au premier clic
     musicRetryBound = false;
-    if (musicAudio && musicAudio.paused && !musicPaused && musicMode) musicAudio.play().catch(() => {});
+    if (musicAudio && musicAudio.paused && !musicPaused && musicMode) musicAudio.play().then(() => setMusicVolume(1500)).catch(() => {});
   }, { once: true });
 }
 
@@ -663,11 +664,15 @@ function launchMusic(name, loop, onEnd) {
   audio.addEventListener('error', () => {
     if (token !== musicToken || musicAudio !== audio) return;
     console.warn('Musique introuvable :', audio.src);
+    if (!onEnd) showToast('🎵 Musique introuvable sur Supabase : ' + name + ' (vérifiez assets/mj/musique et test-assets.html).', 'info');
     if (onEnd) onEnd(true);
   });
   if (!musicPaused) {
     audio.play().then(() => setMusicVolume(1500)).catch((err) => {
-      if (err && err.name === 'NotAllowedError') bindMusicRetry();
+      if (err && err.name === 'NotAllowedError') {
+        bindMusicRetry();
+        showToast('🎵 Le navigateur a bloqué la musique : cliquez n\'importe où sur la page pour la lancer.', 'info');
+      } else console.warn('Lecture de la musique impossible :', err);
     });
   }
 }
