@@ -923,7 +923,7 @@ function showFoxAnswer(name, answer) {
   document.getElementById('fox-result-target').textContent = `Ta réponse pour ${name} :`;
   const el = document.getElementById('fox-answer');
   el.className = 'fox-answer ' + (answer ? 'yes' : 'no');
-  el.textContent = answer ? '🐺 OUI — un Loup-Garou est détecté' : '🌿 NON — aucun Loup-Garou';
+  el.textContent = answer ? '🐺 OUI — un Loup-Garou est détecté' : '🌿 NON — aucun Loup-Garou. Tu as innocenté ces trois joueurs, mais tu perds ton pouvoir pour le reste de la partie.';
   showPanel('fox-panel');
 }
 

@@ -1,5 +1,6 @@
-const VERSION_APP = "50";
+const VERSION_APP = "51";
 console.info("Loup-Garou régie - version " + VERSION_APP);
+let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -141,7 +142,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=50', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=51', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -154,7 +155,7 @@ window.addEventListener('message', (event) => {
     syncLobbyToProjector();
   } else if (data.action === 'eventEnded') {
     // l'annonce de mort vient de se terminer : victoire éventuelle d'abord, sinon l'annonce suivante, puis le lever du jour
-    if (voteEventPending) { voteEventPending = false; waitMusicWanted = true; if (!gameOver) startWaitMusic(); }   // fin de l'élimination : la musique reprend pendant la pause
+    if (dayPause && !hunterState && !hunterWaiting()) resumePauseMusic();   // fin de l'élimination : la musique reprend pendant la pause
     if (hunterState) { onHunterEventEnded(); return; }
     if (victoryPending && currentWinner()) { dayQueue = null; showVictory(); }
     else {
@@ -419,7 +420,7 @@ function distributeRolesNetwork() {
 function updateCallButtons() {
   const mayorBtn = document.getElementById('mayor-call-btn');
   if (mayorBtn) {
-    const used = mayorCalled && !TEST_MODE;
+    const used = mayorCalled;
     mayorBtn.disabled = used;
     mayorBtn.classList.toggle('used', used);
   }
@@ -439,8 +440,9 @@ function updateCallButtons() {
     const noneAlive = distributed && !players.some((p) => p.alive && p.role === btn.dataset.role);
     // Sorcière sans aucune potion : on passe son tour, bouton grisé et bloqué
     const noPotion = btn.dataset.role === 'Sorcière' && witchState.lifeUsed && witchState.deathUsed;
-    btn.disabled = used || noneAlive || noPotion;
-    btn.classList.toggle('used', used || noneAlive || noPotion);
+    const foxLost = btn.dataset.role === 'Renard' && foxPowerLost;
+    btn.disabled = used || noneAlive || noPotion || foxLost;
+    btn.classList.toggle('used', used || noneAlive || noPotion || foxLost);
   });
 
   if (!distributed) {
@@ -608,7 +610,14 @@ function isCenteredVideo(fileName) {
   return (overlayMode === 'center' || overlayMode === 'full') && currentOverlayFile === fileName;
 }
 
+function resumePauseMusic() {
+  if (!dayPause || gameOver) return;
+  waitMusicWanted = true;
+  startWaitMusic();
+}
+
 function playScene(videoId, loop = true) {
+  dayPause = false;
   waitMusicWanted = false;
   stopWaitMusic();
   if (!sendToProjector({ action: 'playYTVideo', videoId, loop })) {
@@ -792,7 +801,7 @@ function pendingNames(kind) {
   return [...selection[kind]].filter((n) => { const p = findPlayer(n); return p && p.alive; });
 }
 
-let voteEventPending = false;   // une annonce d'élimination par le village est en cours
+let dayPause = false;   // pause de jour après une élimination par le village : musique d'attente (jusqu'à la nuit)
 let nightDeaths = 0;   // morts de la nuit (loups, poison, Chasseur, chagrin) : choisit l'audio du lever du jour
 let dayQueue = null;   // annonces restantes avant le lever du jour (null = aucune annonce en cours)
 
@@ -839,7 +848,7 @@ function playCommand(cmd) {
     playAudioFile("Fermer les yeux.mp3");
   } else if (cmd === 'voter_maire') {
     // Vidéo du Maire en plein écran (sans recadrage), sans diffuser l'audio Maire.mp3
-    if (mayorCalled && !TEST_MODE) { showToast('👑 Le Maire a déjà été appelé : le bouton est bloqué.', 'info'); return; }
+    if (mayorCalled) { showToast('👑 Le Maire a déjà été appelé : le bouton est bloqué.', 'info'); return; }
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
     stopLobbyMusic();
     mayorCalled = true;
@@ -862,6 +871,11 @@ function playRenardResponse(isPositive) {
   // la réponse s'affiche sur le téléphone du Renard ; quand l'audio de la réponse est fini, son tour est terminé
   // (sa fenêtre se referme toute seule) puis « Fermez les yeux » est lu
   deliverFoxAnswer(isPositive);
+  if (!isPositive) {
+    foxPowerLost = true;   // trois innocents d'un coup : le Renard perd son pouvoir pour le reste de la partie
+    updateCallButtons();
+    showToast('🦊 Réponse « Non » : le Renard perd définitivement son pouvoir (bouton grisé).', 'info');
+  }
   playAudioFile(isPositive ? "Appel Renard oui.mp3" : "Appel Renard non.mp3", { then: CLOSE_EYES_AUDIO, done: finishFoxTurns });
 }
 
@@ -1069,6 +1083,7 @@ function playRole(role) {
   const item = roleFiles[role];
   if (!item) return;
   if (calledOnce.has(role)) return;
+  if (role === 'renard' && foxPowerLost) return;   // le Renard n'a plus de pouvoir
   if (role === 'sorciere' && witchState.lifeUsed && witchState.deathUsed) return;   // plus de potion : on passe son tour
   currentTurnRole = TURN_ROLE_BY_CALL[role] || null;
 
@@ -1219,6 +1234,7 @@ function resetGameAutomation() {
   gameStarted = false;
   mayor = null;
   mayorCalled = false;
+  foxPowerLost = false;
   if (rps) { clearTimeout(rps.timer); rps = null; }
   waitMusicWanted = false;
   successionPending = null;
@@ -1604,6 +1620,8 @@ function startHunterSequence(thenDay) {
   hunterState = 'intro';
   if (!projectorOpen()) { hunterIntroEnded(); return true; }   // pas d'écran secondaire : on passe directement au tir
   silenceVoice();
+  waitMusicWanted = false;
+  stopWaitMusic();   // la vidéo du Chasseur est jouée sans musique
   sendToProjector({ action: 'eventVideo', url: mediaUrl('video', 'Chasseur.mp4'), deaths: [], namesAt: 'none', stopScene: true });
   showToast('🏹 Vidéo du Chasseur en cours…', 'info');
   renderMJDashboard();
@@ -1613,6 +1631,8 @@ function startHunterSequence(thenDay) {
 function hunterIntroEnded() {
   if (hunterChoice) { playHunterShot(); return; }
   hunterState = 'wait';
+  sendToProjector({ action: 'hunterWaiting', name: hunterPending });   // carte du Chasseur sur l'écran secondaire pendant son choix
+  resumePauseMusic();
   showToast("🏹 En attente du tir du Chasseur (il doit choisir sa cible sur son téléphone).", 'info');
   renderMJDashboard();
 }
@@ -1654,7 +1674,9 @@ function finishHunter() {
   hunterThenDay = false;
   hunterDone = true;
   selection.hunter = new Set();
+  sendToProjector({ action: 'hunterWaiting', hide: true });
   renderMJDashboard();
+  resumePauseMusic();
   if (victoryPending && currentWinner()) { dayQueue = null; showVictory(); return; }
   victoryPending = false;
   if (thenDay && dayQueue) nextDayStep();     // le jour se lève après le tir
@@ -1669,6 +1691,7 @@ function cancelHunter() {
   hunterState = null;
   hunterThenDay = false;
   selection.hunter = new Set();
+  sendToProjector({ action: 'hunterWaiting', hide: true });
   if (h) sendTo(h, { type: 'hunterDone' });
   if (wasActive && dayQueue) nextDayStep();
 }
@@ -2262,11 +2285,12 @@ function announceKillEvent(kind, opts = {}) {
 
   const deaths = killPlayers(names);
   if (kind !== 'vote') nightDeaths += deaths.length;
-  else voteEventPending = true;
+  else dayPause = true;
   selection[kind] = new Set();
   if (kind === 'wolves') night.wolfVictim = null;
   if (kind === 'poison') night.poisoned = null;
 
+  sendToProjector({ action: 'hunterWaiting', hide: true });
   waitMusicWanted = false;
   stopWaitMusic();
   // on coupe la voix du MJ et les incrustations pendant la vidéo d'annonce
@@ -2387,7 +2411,8 @@ document.addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if (chip) {
     const { kind, name } = chip.dataset;
-    if (kind === 'mayor') selection.mayor = selection.mayor.has(name) ? new Set() : new Set([name]);   // un seul Maire
+    if (kind === 'hunter') selection.hunter = selection.hunter.has(name) ? new Set() : new Set([name]);   // un seul joueur visé
+    else if (kind === 'mayor') selection.mayor = selection.mayor.has(name) ? new Set() : new Set([name]);   // un seul Maire
     else if (selection[kind].has(name)) selection[kind].delete(name);
     else selection[kind].add(name);
     if (kind === 'wolves' && selection.wolves.size === 1) night.wolfVictim = [...selection.wolves][0];

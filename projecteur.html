@@ -317,6 +317,18 @@
     }
 
 
+    /* ATTENTE DU TIR DU CHASSEUR : sa carte (carrée) pendant qu'il choisit sa cible */
+    #hunter-wait-overlay {
+      position: fixed; inset: 0; z-index: 36; display: none;
+      flex-direction: column; align-items: center; justify-content: center; gap: 2.4vh;
+      background: radial-gradient(circle at center, rgba(40, 20, 4, 0.82) 0%, rgba(0, 0, 0, 0.93) 100%);
+    }
+    #hunter-wait-overlay .hw-card { width: 34vh; height: 34vh; position: relative; }
+    #hunter-wait-overlay .hw-card .card-face { transform: none; }
+    #hunter-wait-overlay .hw-role { font-family: 'Wolf Brothers', sans-serif; font-size: 7vh; color: #fde68a; text-shadow: 0 0.4vh 1vh #000; letter-spacing: 0.3vh; }
+    #hunter-wait-overlay .hw-name { font-family: 'Angel Wish', 'Wolf Brothers', 'Segoe UI', sans-serif; font-size: 12vh; line-height: 1; color: #f4dcdc; text-shadow: 0 0 3vh rgba(220, 38, 38, 0.75), 0 0.6vh 1.4vh #000; }
+    #hunter-wait-overlay .hw-sub { font-size: 4vh; color: #fcd34d; text-shadow: 0 0.3vh 0.8vh #000; }
+
     /* ÉLECTION DU MAIRE : candidats et discours */
     #candidates-overlay {
       position: fixed; inset: 0; z-index: 35; display: none;
@@ -457,6 +469,12 @@
     <div id="victory-title" class="victory-title">Victoire du village !</div>
     <div id="victory-sub" class="victory-sub">Tous les Loups-Garous ont été éliminés</div>
   </div>
+  <div id="hunter-wait-overlay">
+    <div class="hw-role">Chasseur</div>
+    <div class="hw-card"><div class="card-face" id="hw-face"></div></div>
+    <div id="hw-name" class="hw-name"></div>
+    <div class="hw-sub">🏹 Il choisit sa cible pour son dernier tir…</div>
+  </div>
   <div id="candidates-overlay">
     <div class="cand-title">👑 Candidats à la mairie</div>
     <div id="cand-list" class="cand-list"></div>
@@ -473,7 +491,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 50');
+    console.info('Projecteur - version 51');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -768,6 +786,23 @@
     }
     document.getElementById('victory-overlay').addEventListener('click', hideVictory);
 
+    // --- ATTENTE DU CHASSEUR : sa carte carrée + son nom ---
+    function showHunterWait(name) {
+      const face = document.getElementById('hw-face');
+      face.innerHTML = '';
+      const url = roleImgUrl('Chasseur');
+      if (url) {
+        const img = document.createElement('img');
+        img.alt = 'Chasseur';
+        img.onerror = () => { img.remove(); face.textContent = 'Chasseur'; };
+        img.src = url;
+        face.appendChild(img);
+      } else { face.textContent = 'Chasseur'; }
+      document.getElementById('hw-name').textContent = name || '';
+      document.getElementById('hunter-wait-overlay').style.display = 'flex';
+    }
+    function hideHunterWait() { document.getElementById('hunter-wait-overlay').style.display = 'none'; }
+
     // --- CANDIDATS AU POSTE DE MAIRE : liste + candidat qui parle ---
     function showCandidates(names, speaker, sub) {
       const ov = document.getElementById('candidates-overlay');
@@ -841,6 +876,7 @@
 
     function playEvent(data) {
       endEvent();
+      hideHunterWait();
       const sfx = data.sfx || {};
       hideOverlay();
       eventActive = true;
@@ -939,6 +975,10 @@
           hideVictory();
           break;
 
+        case 'hunterWaiting':
+          if (data.hide) hideHunterWait(); else showHunterWait(data.name);
+          break;
+
         case 'mayorCandidates':
           if (data.hide) hideCandidates(); else showCandidates(data.names, data.speaker, data.sub);
           break;
@@ -987,6 +1027,7 @@
           endEvent();
           hideMayor();
           hideCandidates();
+          hideHunterWait();
           hideVictory();
           break;
 

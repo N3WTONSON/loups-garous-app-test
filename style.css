@@ -849,3 +849,6 @@ input[type="number"] {
 .rps-btn { font-size: 2.4rem; padding: 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .rps-btn span { font-size: 0.85rem; }
 .rps-result { white-space: pre-line; font-weight: bold; color: #fde68a; text-align: center; }
+
+/* Boutons de choix côté téléphone : police basique et lisible (Angel Wish reste pour les noms affichés ailleurs) */
+.pick-btn.nom-joueur, .thief-targets .btn.nom-joueur { font-family: 'Segoe UI', Roboto, Arial, sans-serif; font-size: 1.25rem; font-weight: 600; letter-spacing: 0.02em; }
