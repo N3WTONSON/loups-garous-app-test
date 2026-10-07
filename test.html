@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>🧪 Loup-Garou - Régie (MODE TEST)</title>
-  <link rel="stylesheet" href="style.css?v=59">
+  <link rel="stylesheet" href="style.css?v=60">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -166,47 +166,47 @@
       <div class="column-right">
 
 
-        <!-- Régie Ambiance : Phases de Jeu -->
+        <!-- Phases du Jeu & Appels des Personnages : une seule catégorie, dans l'ordre de la nuit -->
         <section class="card">
-          <h2 class="titre-wolf">🌙 Phases du Jeu</h2>
-          <div class="button-grid">
-            <button class="btn btn-night" onclick="playNightPhase()">🌌 Nuit Tombante</button>
-            <button class="btn btn-day" onclick="playDayPhase()">☀️ Le Jour Se Lève</button>
-          </div>
-        </section>
-
-        <!-- Appels des Personnages -->
-        <section class="card">
-          <h2 class="titre-wolf">🎭 Appels des Personnages</h2>
+          <h2 class="titre-wolf">🌙 Phases du Jeu / 🎭 Appels des Personnages</h2>
           <p id="calls-hint" class="hint" style="margin: 10px 0 0;"></p>
+          <div id="next-call-banner" class="next-call-banner" style="display: none;"></div>
           <div id="calls-grid" class="button-grid role-grid">
-            <button class="btn-role-card" id="mayor-call-btn" onclick="playCommand('voter_maire')">
+            <button class="btn-role-card" id="mayor-call-btn" data-key="maire" onclick="playCommand('voter_maire')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/images/Maire.png" alt="Maire">
               <span>Le Maire</span>
             </button>
-            <button class="btn-role-card" data-role="Voleur" data-call="voleur" onclick="playRole('voleur')">
+            <button class="btn-role-card" id="night-call-btn" data-key="nuit" data-phase="1" onclick="playNightPhase()">
+              <span class="phase-icon">🌌</span>
+              <span>Nuit Tombante</span>
+            </button>
+            <button class="btn-role-card" data-role="Voleur" data-call="voleur" data-key="voleur" onclick="playRole('voleur')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voleur%201.png" alt="Voleur">
               <span>Le Voleur</span>
             </button>
-            <button class="btn-role-card" data-role="Cupidon" data-call="cupidon" onclick="playRole('cupidon')">
+            <button class="btn-role-card" data-role="Cupidon" data-call="cupidon" data-key="cupidon" onclick="playRole('cupidon')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Cupidon.png" alt="Cupidon">
               <span>Cupidon</span>
             </button>
-            <button class="btn-role-card" data-role="Voyante" onclick="playRole('voyante')">
+            <button class="btn-role-card" data-role="Voyante" data-key="voyante" onclick="playRole('voyante')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voyante%201.png" alt="Voyante">
               <span>La Voyante</span>
             </button>
-            <button class="btn-role-card" data-role="Renard" onclick="playRole('renard')">
+            <button class="btn-role-card" data-role="Renard" data-key="renard" onclick="playRole('renard')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Renard.jpg" alt="Renard">
               <span>Le Renard</span>
             </button>
-            <button class="btn-role-card" data-role="Loup-Garou" onclick="playRole('loups')">
+            <button class="btn-role-card" data-role="Loup-Garou" data-key="loups" onclick="playRole('loups')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Loup-Garou.png" alt="Loups-Garous">
               <span>Les Loups-Garous</span>
             </button>
-            <button class="btn-role-card" data-role="Sorcière" onclick="playRole('sorciere')">
+            <button class="btn-role-card" data-role="Sorcière" data-key="sorciere" onclick="playRole('sorciere')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/images/Sorciere.png" alt="Sorcière">
               <span>La Sorcière</span>
+            </button>
+            <button class="btn-role-card" id="day-call-btn" data-key="jour" data-phase="1" onclick="playDayPhase()">
+              <span class="phase-icon">☀️</span>
+              <span>Le Jour Se Lève</span>
             </button>
           </div>
         </section>
@@ -251,7 +251,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 59 · MODE TEST</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 60 · MODE TEST</p>
 
   <script>
     (function () {
@@ -303,7 +303,7 @@
     });
   </script>
   <script>window.LG_TEST_MODE = true;</script>
-  <script src="script.js?v=59"></script>
-  <script src="test-tools.js?v=59"></script>
+  <script src="script.js?v=60"></script>
+  <script src="test-tools.js?v=60"></script>
 </body>
 </html>

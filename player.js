@@ -942,7 +942,10 @@ function foxClose(auto) {
 
 // --- Carte de rôle en petit, en haut à droite, à côté du nom (dès que la partie a commencé) ---
 function applyGameStarted(started) {
+  const wasStarted = gameStartedUI;
   gameStartedUI = !!started;
+  // la partie commence (appel du Maire) : le rôle se masque automatiquement, on peut le rouvrir en touchant la petite carte
+  if (gameStartedUI && !wasStarted && isRevealed) toggleRoleReveal();
   const big = document.getElementById('secret-card');
   const card = document.getElementById('game-card');
   if (big) big.style.display = gameStartedUI ? 'none' : '';

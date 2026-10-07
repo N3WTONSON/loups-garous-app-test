@@ -852,3 +852,13 @@ input[type="number"] {
 
 /* Boutons de choix côté téléphone : police basique et lisible (Angel Wish reste pour les noms affichés ailleurs) */
 .pick-btn.nom-joueur, .thief-targets .btn.nom-joueur { font-family: 'Segoe UI', Roboto, Arial, sans-serif; font-size: 1.25rem; font-weight: 600; letter-spacing: 0.02em; }
+
+/* --- Catégorie unique : phases + appels --- */
+.btn-role-card span.phase-icon { font-size: 3.4rem; line-height: 95px; height: 95px; margin: 0; font-weight: 400; }
+.btn-role-card[data-phase] { border-color: rgba(251, 191, 36, 0.5); background: rgba(251, 191, 36, 0.10); }
+.btn-role-card.next-call { border-color: #fcd34d; box-shadow: 0 0 0 3px rgba(252, 211, 77, 0.55), 0 0 18px rgba(252, 211, 77, 0.6); animation: nextCallPulse 1.4s ease-in-out infinite; }
+@keyframes nextCallPulse { 50% { box-shadow: 0 0 0 5px rgba(252, 211, 77, 0.25), 0 0 26px rgba(252, 211, 77, 0.8); } }
+.next-call-banner {
+  margin: 12px 0 0; padding: 12px 14px; border-radius: 10px; text-align: center; font-weight: 600;
+  background: rgba(252, 211, 77, 0.14); border: 2px solid #fcd34d; color: #fde68a; cursor: pointer;
+}

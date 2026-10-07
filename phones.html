@@ -162,6 +162,9 @@
       const send = (m, at) => setTimeout(() => window.LG_SIM.fromPhone(ph.id, m), at);
       const d = baseDelay();
       switch (msg.type) {
+        case 'assignRole':
+          send({ type: 'roleSeen' }, d);   // le joueur simulé « prend connaissance » de son rôle
+          break;
         case 'thiefTurn':
           if (!msg.options.length) break;
           else send({ type: 'thiefSteal', choice: Math.floor(Math.random() * msg.options.length) }, d);

@@ -1,4 +1,4 @@
-const VERSION_APP = "59";
+const VERSION_APP = "60";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -99,6 +99,9 @@ let afterAudio = null;         // son à enchaîner dès que la voix en cours es
 let END_TURN_DELAY = 2500;     // délai (ms) entre la fin d'un tour et « Fermez les yeux »
 const CLOSE_EYES_AUDIO = 'Fermer les yeux.mp3';
 let gameStarted = false;       // vrai après le premier appel du Maire : la carte du rôle passe en petit sur les téléphones
+let allSeenShown = false;      // vrai quand tous les joueurs ont pris connaissance de leur rôle
+let nightCalled = new Set();   // appels déjà faits cette nuit (pour proposer le prochain rôle)
+let nextCallKey = null;       // bouton à utiliser ensuite (mis en évidence)
 let currentTurnRole = null;   // rôle actuellement appelé (surbrillance du joueur dans le tableau de bord du MJ)
 const TURN_ROLE_BY_CALL = { voleur: 'Voleur', cupidon: 'Cupidon', voyante: 'Voyante', renard: 'Renard', loups: 'Loup-Garou', sorciere: 'Sorcière', chasseur: 'Chasseur' };
 let activeCallRoles = new Set();
@@ -143,7 +146,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=59', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=60', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -370,7 +373,6 @@ function updateMJRoleList() {
 }
 
 // ---- Début de partie : fenêtre quand tous les joueurs ont pris connaissance de leur rôle ----
-let allSeenShown = false;
 
 function closeAllSeenModal() {
   const m = document.getElementById('all-seen-modal');
@@ -392,7 +394,8 @@ function showAllSeenModal() {
 
 // Tant que tous les joueurs n'ont pas pris connaissance de leur rôle, la partie ne peut pas commencer
 function startBlocked() {
-  if (!distributed || allSeenShown) return false;
+  if (!distributed) { showToast("Distribuez d'abord les rôles : la partie ne peut pas commencer.", 'info'); return true; }
+  if (allSeenShown) return false;
   const waiting = players.filter((p) => !p.seenRole).map((p) => p.name);
   showToast(`⏳ La partie ne peut pas commencer : ${waiting.join(', ')} n'${waiting.length > 1 ? 'ont' : 'a'} pas encore pris connaissance de ${waiting.length > 1 ? 'leur rôle' : 'son rôle'}.`, 'info');
   return true;
@@ -469,12 +472,17 @@ function distributeRolesNetwork() {
 }
 
 function updateCallButtons() {
+  const locked = !distributed || !allSeenShown;   // tant que tous les joueurs n'ont pas vu leur rôle : tout est bloqué
   const mayorBtn = document.getElementById('mayor-call-btn');
   if (mayorBtn) {
-    const used = mayorCalled || (distributed && !allSeenShown);
+    const used = mayorCalled || locked;
     mayorBtn.disabled = used;
     mayorBtn.classList.toggle('used', used);
   }
+  ['night-call-btn', 'day-call-btn'].forEach((id) => {
+    const b = document.getElementById(id);
+    if (b) { b.disabled = locked; b.classList.toggle('used', locked); }
+  });
   const grid = document.getElementById('calls-grid');
   const hint = document.getElementById('calls-hint');
   if (!grid || !hint) return;
@@ -492,12 +500,16 @@ function updateCallButtons() {
     // Sorcière sans aucune potion : on passe son tour, bouton grisé et bloqué
     const noPotion = btn.dataset.role === 'Sorcière' && witchState.lifeUsed && witchState.deathUsed;
     const foxLost = btn.dataset.role === 'Renard' && foxPowerLost;
-    btn.disabled = used || noneAlive || noPotion || foxLost;
-    btn.classList.toggle('used', used || noneAlive || noPotion || foxLost);
+    btn.disabled = used || noneAlive || noPotion || foxLost || locked;
+    btn.classList.toggle('used', used || noneAlive || noPotion || foxLost || locked);
   });
+  document.querySelectorAll('#calls-grid [data-key]').forEach((b) => b.classList.toggle('next-call', !locked && !!nextCallKey && b.dataset.key === nextCallKey));
 
   if (!distributed) {
-    hint.textContent = "Distribuez les rôles : seuls les personnages en jeu apparaîtront ici (le Maire est toujours disponible).";
+    hint.textContent = "Distribuez les rôles : seuls les personnages en jeu apparaîtront ici.";
+    hint.style.display = 'block';
+  } else if (!allSeenShown) {
+    hint.textContent = "⏳ En attente : tous les joueurs doivent d'abord prendre connaissance de leur rôle sur leur téléphone. Les boutons sont bloqués.";
     hint.style.display = 'block';
   } else if (visible === 0) {
     hint.textContent = "Aucun personnage à appeler dans cette partie.";
@@ -852,6 +864,8 @@ function presentCharacters() {
 
 function playNightPhase() {
   if (startBlocked()) return;
+  nightCalled = new Set();
+  setNextCall(null);
   stopLobbyMusic();
   nightDeaths = 0;
   currentTurnRole = null;
@@ -906,6 +920,7 @@ function nextDayStep() {
 // leurs annonces (vidéo + noms) sont lues AVANT le lever du jour.
 function playDayPhase() {
   if (startBlocked()) return;
+  setNextCall(null);
   stopLobbyMusic();
   currentTurnRole = null;
   if (dayQueue) { startDayScene(); return; }              // 2e clic : on n'attend plus les annonces
@@ -931,7 +946,7 @@ function playCommand(cmd) {
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
     stopLobbyMusic();
     mayorCalled = true;
-    updateCallButtons();
+    setNextCall('nuit');
     waitMusicWanted = true;
     openMayorVote(true);                              // les joueurs votent depuis leur téléphone
     if (!gameStarted) {                           // premier appel du Maire : la partie commence
@@ -1006,7 +1021,51 @@ function onAudioFinished() {
 
 // Fin d'un tour de nuit (Voleur, Cupidon, Voyante, Loups, Sorcière) : « Fermez les yeux » est lu
 // automatiquement, après la voix en cours s'il y en a une.
+const CALL_ORDER = [
+  { key: 'voleur', role: 'Voleur', label: 'Le Voleur' },
+  { key: 'cupidon', role: 'Cupidon', label: 'Cupidon' },
+  { key: 'voyante', role: 'Voyante', label: 'La Voyante' },
+  { key: 'renard', role: 'Renard', label: 'Le Renard' },
+  { key: 'loups', role: 'Loup-Garou', label: 'Les Loups-Garous' },
+  { key: 'sorciere', role: 'Sorcière', label: 'La Sorcière' }
+];
+
+function setNextCall(key) {
+  nextCallKey = key;
+  const b = document.getElementById('next-call-banner');
+  if (b && !key) b.style.display = 'none';
+  updateCallButtons();
+}
+
+// Prochain rôle à appeler cette nuit (null = la nuit est finie)
+function nextRoleToCall() {
+  return CALL_ORDER.find((c) => {
+    if (nightCalled.has(c.key) || calledOnce.has(c.key)) return false;
+    if (!activeCallRoles.has(c.role)) return false;
+    if (!players.some((p) => p.alive && p.role === c.role)) return false;
+    if (c.key === 'renard' && foxPowerLost) return false;
+    if (c.key === 'sorciere' && witchState.lifeUsed && witchState.deathUsed) return false;
+    return true;
+  }) || null;
+}
+
+// Fin d'un tour : message pour le MJ qui indique le prochain rôle à appeler
+function announceNextCall(doneRole) {
+  const next = nextRoleToCall();
+  const b = document.getElementById('next-call-banner');
+  setNextCall(next ? next.key : 'jour');
+  if (!b) return;
+  const done = doneRole ? `✅ Tour terminé (${escapeHtml(doneRole)}). ` : '✅ Tour terminé. ';
+  b.innerHTML = next
+    ? `${done}Passez au prochain rôle : <strong>${escapeHtml(next.label)}</strong>`
+    : `${done}Plus aucun rôle à appeler : <strong>Le jour se lève</strong>`;
+  b.style.display = '';
+  b.onclick = () => { b.style.display = 'none'; };
+}
+
 function scheduleCloseEyes(delay = END_TURN_DELAY) {
+  const doneRole = currentTurnRole;
+  if (doneRole) announceNextCall(doneRole);
   setTimeout(() => {
     const speaking = window.speechSynthesis && window.speechSynthesis.speaking;
     const busy = currentAudio && !currentAudio.paused && !currentAudio.ended;
@@ -1167,6 +1226,8 @@ function playRole(role) {
   if (role === 'renard' && foxPowerLost) return;   // le Renard n'a plus de pouvoir
   if (role === 'sorciere' && witchState.lifeUsed && witchState.deathUsed) return;   // plus de potion : on passe son tour
   currentTurnRole = TURN_ROLE_BY_CALL[role] || null;
+  nightCalled.add(role);
+  setNextCall(null);
 
   playAudioFile(role === 'sorciere' ? witchCallAudio() : item.audio);
   if (item.video) playRoleVideo(item.video, 'center');
@@ -1315,6 +1376,8 @@ function resetGameAutomation() {
   gameStarted = false;
   mayor = null;
   mayorCalled = false;
+  nightCalled = new Set();
+  nextCallKey = null;
   foxPowerLost = false;
   if (rps) { clearTimeout(rps.timer); rps = null; }
   waitMusicWanted = false;
