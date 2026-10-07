@@ -310,6 +310,25 @@
       .death-card-inner { animation-duration: 0.01s; animation-delay: 0s; }
     }
 
+
+    /* ÉLECTION DU MAIRE : candidats et discours */
+    #candidates-overlay {
+      position: fixed; inset: 0; z-index: 35; display: none;
+      flex-direction: column; align-items: center; justify-content: center; gap: 4vh;
+      background: radial-gradient(circle at center, rgba(40, 26, 4, 0.8) 0%, rgba(0, 0, 0, 0.92) 100%);
+    }
+    .cand-title { font-family: 'Wolf Brothers', sans-serif; font-size: 7vh; color: #fcd34d; text-shadow: 0 0.4vh 1vh #000; letter-spacing: 0.3vh; }
+    .cand-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 3vh 3vw; max-width: 90vw; }
+    .cand-item {
+      font-family: 'Angel Wish', 'Wolf Brothers', 'Segoe UI', sans-serif;
+      font-size: 7vh; color: #fca5a5; padding: 1.5vh 3vw;
+      background: rgba(80, 10, 14, 0.75); border: 0.3vh solid rgba(185, 28, 28, 0.7); border-radius: 1vh;
+      opacity: 0.55; transition: all 0.4s ease;
+    }
+    .cand-item.speaking { opacity: 1; color: #fff7d6; background: rgba(120, 80, 4, 0.85); border-color: #fcd34d; transform: scale(1.18); box-shadow: 0 0 4vh rgba(252, 211, 77, 0.6); }
+    .cand-item.idle { opacity: 1; }
+    .cand-sub { font-size: 3.6vh; color: #e2e8f0; text-shadow: 0 0.3vh 0.8vh #000; min-height: 4vh; }
+
     /* ÉLECTION DU MAIRE : nom doré + couronne */
     #mayor-overlay {
       position: fixed;
@@ -432,6 +451,11 @@
     <div class="victory-title">Victoire du village !</div>
     <div class="victory-sub">Tous les Loups-Garous ont été éliminés</div>
   </div>
+  <div id="candidates-overlay">
+    <div class="cand-title">👑 Candidats à la mairie</div>
+    <div id="cand-list" class="cand-list"></div>
+    <div id="cand-sub" class="cand-sub"></div>
+  </div>
   <div id="mayor-overlay">
     <div class="mayor-crown">👑</div>
     <div id="mayor-name" class="mayor-name"></div>
@@ -443,7 +467,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 43');
+    console.info('Projecteur - version 44');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -714,6 +738,22 @@
     function showVictory() { document.getElementById('victory-overlay').style.display = 'flex'; }
     document.getElementById('victory-overlay').addEventListener('click', hideVictory);
 
+    // --- CANDIDATS AU POSTE DE MAIRE : liste + candidat qui parle ---
+    function showCandidates(names, speaker) {
+      const ov = document.getElementById('candidates-overlay');
+      const list = document.getElementById('cand-list');
+      list.innerHTML = '';
+      (names || []).forEach((n) => {
+        const d = document.createElement('div');
+        d.className = 'cand-item' + (n === speaker ? ' speaking' : (speaker ? '' : ' idle'));
+        d.textContent = (n === speaker ? '🎤 ' : '') + n;
+        list.appendChild(d);
+      });
+      document.getElementById('cand-sub').textContent = speaker ? 'Discours de ' + speaker : '';
+      ov.style.display = 'flex';
+    }
+    function hideCandidates() { document.getElementById('candidates-overlay').style.display = 'none'; }
+
     // --- ÉLECTION DU MAIRE : couronne + nom ---
     let mayorTimer = null;
     function hideMayor() {
@@ -842,7 +882,12 @@
           hideVictory();
           break;
 
+        case 'mayorCandidates':
+          if (data.hide) hideCandidates(); else showCandidates(data.names, data.speaker);
+          break;
+
         case 'announceMayor':
+          hideCandidates();
           showMayor(data.name);
           break;
 
@@ -884,6 +929,7 @@
           hideOverlay();
           endEvent();
           hideMayor();
+          hideCandidates();
           hideVictory();
           break;
 

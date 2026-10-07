@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Loup-Garou - Espace Joueur</title>
-  <link rel="stylesheet" href="style.css?v=43">
+  <link rel="stylesheet" href="style.css?v=44">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -133,6 +133,17 @@
         <button class="btn btn-day" id="succession-confirm" onclick="successionConfirm()" disabled>👑 Désigner mon successeur</button>
       </div>
 
+      <!-- Candidature à l'élection du Maire -->
+      <div id="candidacy-panel" class="action-panel" style="display: none;">
+        <h3>👑 Élection du Maire</h3>
+        <p id="candidacy-info">Veux-tu te présenter comme Maire ?</p>
+        <div id="candidacy-buttons" class="candidacy-buttons">
+          <button class="btn btn-day" id="candidacy-yes" onclick="candidacyAnswer(true)">🙋 Je me présente</button>
+          <button class="btn btn-effect" id="candidacy-no" onclick="candidacyAnswer(false)">🙅 Je ne me présente pas</button>
+        </div>
+        <ul id="candidacy-list" class="pick-list"></ul>
+      </div>
+
       <!-- Élection du Maire -->
       <div id="mayor-panel" class="action-panel" style="display: none;">
         <h3>👑 Élection du Maire</h3>
@@ -164,7 +175,7 @@
       </div>
     </section>
   </main>
-  <p class="hint" style="text-align:center;">Version 43</p>
+  <p class="hint" style="text-align:center;">Version 44</p>
 
   <script>
     (function () {
@@ -193,7 +204,7 @@
       });
     })();
   </script>
-  <script src="sim-peer.js?v=43"></script>
-  <script src="player.js?v=43"></script>
+  <script src="sim-peer.js?v=44"></script>
+  <script src="player.js?v=44"></script>
 </body>
 </html>

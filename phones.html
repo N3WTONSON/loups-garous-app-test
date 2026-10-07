@@ -189,6 +189,9 @@
         case 'mayorSuccessionTurn':
           if (msg.targets.length) send({ type: 'mayorSuccessor', target: rnd(msg.targets) }, d);
           break;
+        case 'candidacyTurn':
+          if (msg.answer === null || msg.answer === undefined) send({ type: 'mayorCandidacy', run: Math.random() < 0.5 }, d);
+          break;
         case 'mayorTurn':
           if (!msg.myVote && msg.targets.length) send({ type: 'mayorVote', target: rnd(msg.targets) }, d);
           break;

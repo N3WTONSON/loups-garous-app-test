@@ -220,6 +220,12 @@ function connect(room, name, token, isAuto) {
         hidePanel('vote-panel');
       } else if (data.type === 'mayorTurn') {
         showMayorPanel(data);
+      } else if (data.type === 'candidacyTurn') {
+        showCandidacyAsk(data.answer);
+      } else if (data.type === 'candidacyAck') {
+        showCandidacyAsk(data.answer);
+      } else if (data.type === 'candidacySpeech') {
+        showCandidacySpeech(data);
       } else if (data.type === 'mayorAck') {
         mayorState.my = data.target;
         mayorState.picked = data.target;
@@ -230,6 +236,7 @@ function connect(room, name, token, isAuto) {
         hidePanel('succession-panel');
       } else if (data.type === 'mayorClose') {
         hidePanel('mayor-panel');
+        hidePanel('candidacy-panel');
       } else if (data.type === 'gameStarted') {
         applyGameStarted(data.started !== false);
       } else if (data.type === 'hunterTurn') {
@@ -447,7 +454,7 @@ function setAliveUI(alive) {
   const banner = document.getElementById('dead-banner');
   if (banner) banner.style.display = alive ? 'none' : 'block';
   if (!alive) {
-    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'fox-panel'].forEach(hidePanel);
+    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'candidacy-panel', 'fox-panel'].forEach(hidePanel);
   }
 }
 
@@ -691,10 +698,45 @@ function showSeerResult(name, role) {
   showPanel('seer-panel');
 }
 
+// --- Candidatures du Maire : « Je me présente » / « Je ne me présente pas », puis discours oraux ---
+function showCandidacyAsk(answer) {
+  const asked = answer === true || answer === false;
+  document.getElementById('candidacy-info').textContent = asked
+    ? (answer ? '✅ Tu te présentes. Prépare ton discours : tu le feras à l\'oral devant le village.' : '🙅 Tu ne te présentes pas. Tu peux changer d\'avis tant que les candidatures sont ouvertes.')
+    : 'Veux-tu te présenter comme Maire ? Si oui, tu feras un discours à l\'oral devant le village.';
+  document.getElementById('candidacy-buttons').style.display = '';
+  document.getElementById('candidacy-yes').disabled = answer === true;
+  document.getElementById('candidacy-no').disabled = answer === false;
+  document.getElementById('candidacy-list').innerHTML = '';
+  showPanel('candidacy-panel');
+}
+
+function showCandidacySpeech(data) {
+  const list = document.getElementById('candidacy-list');
+  document.getElementById('candidacy-buttons').style.display = 'none';
+  document.getElementById('candidacy-info').textContent = data.speaker
+    ? (data.speaker === (session && session.name) ? '🎤 C\'est à toi de faire ton discours !' : `🎤 Discours de ${data.speaker}… Écoute-le avant de voter.`)
+    : (data.me ? '🙋 Tu es candidat. Attends que le Maître du Jeu te donne la parole.' : 'Les candidats vont faire leur discours, puis le vote s\'ouvrira.');
+  list.innerHTML = '';
+  (data.candidates || []).forEach((name) => {
+    const li = document.createElement('li');
+    li.className = 'candidate-line' + (name === data.speaker ? ' speaking' : '');
+    li.textContent = (name === data.speaker ? '🎤 ' : '👑 ') + name;
+    list.appendChild(li);
+  });
+  showPanel('candidacy-panel');
+}
+
+function candidacyAnswer(run) {
+  if (!conn || !conn.open) return;
+  conn.send({ type: 'mayorCandidacy', run: !!run });
+}
+
 // --- Élection du Maire : on choisit un nom, puis on appuie sur « Voter » (modifiable tant que l'élection est ouverte) ---
 let mayorState = { targets: [], my: null, picked: null };
 
 function showMayorPanel(data) {
+  hidePanel('candidacy-panel');
   mayorState = { targets: data.targets || [], my: data.myVote || null, picked: data.myVote || null };
   renderMayorList();
   showPanel('mayor-panel');
@@ -775,7 +817,7 @@ function showGameOver(winner) {
   if (!winner) { el.style.display = 'none'; return; }   // la partie reprend
   el.textContent = winner === 'village' ? '🏆 Victoire du village ! Tous les Loups-Garous sont morts.' : '🏁 Partie terminée.';
   el.style.display = 'block';
-  ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'fox-panel'].forEach(hidePanel);
+  ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'candidacy-panel', 'fox-panel'].forEach(hidePanel);
 }
 
 // --- Renard : il désigne UN joueur (noms uniquement) puis lit la réponse OUI / NON du Maître du Jeu ---

@@ -834,3 +834,8 @@ input[type="number"] {
 .thief-card.selected { border-color: #fecaca; box-shadow: 0 0 0 3px rgba(254, 202, 202, 0.55); }
 
 #distribute-btn:disabled { cursor: not-allowed; }
+
+/* --- Candidatures du Maire --- */
+.candidacy-buttons { display: grid; gap: 8px; margin-bottom: 12px; }
+.candidate-line { list-style: none; padding: 10px 12px; border: 1px solid rgba(185, 28, 28, 0.6); border-radius: 6px; background: rgba(80, 10, 14, 0.5); font-family: 'Angel Wish', 'Wolf Brothers', sans-serif; font-size: 1.2rem; text-align: center; }
+.candidate-line.speaking { border-color: #fcd34d; background: rgba(120, 80, 4, 0.6); color: #fde68a; box-shadow: 0 0 12px rgba(252, 211, 77, 0.5); }

@@ -1,4 +1,4 @@
-const VERSION_APP = "43";
+const VERSION_APP = "44";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -133,7 +133,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=43', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=44', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -226,6 +226,7 @@ function routePlayerMessage(conn, data) {
   else if (data.type === 'foxClosed') handleFoxClosed(conn);
   else if (data.type === 'hunterShoot') handleHunterShot(conn, data);
   else if (data.type === 'mayorVote') handleMayorVote(conn, data);
+  else if (data.type === 'mayorCandidacy') handleMayorCandidacy(conn, data);
   else if (data.type === 'mayorSuccessor') handleMayorSuccessor(conn, data);
 }
 
@@ -1024,7 +1025,7 @@ function resetGameAutomation() {
   gameStarted = false;
   mayor = null;
   successionPending = null;
-  mayorVote = { open: false, votes: new Map() };
+  mayorVote = newMayorVote(false);
   dayQueue = null;
   seerWaiting = new Set();
   seerResults = new Map();
@@ -1631,30 +1632,104 @@ function handleSeerChoice(conn, data) {
 // Chaque joueur en vie vote depuis son téléphone (noms uniquement). Le plus voté devient Maire : son nom s'affiche
 // avec une couronne sur l'écran secondaire.
 let mayor = null;
-let mayorVote = { open: false, votes: new Map() };
+let mayorVote = newMayorVote(false);
+
+// Élection en 3 temps : 1) candidatures (chaque joueur dit s'il se présente), 2) discours oraux des candidats
+// (affichés sur l'écran secondaire), 3) vote — uniquement parmi les candidats.
+function newMayorVote(open) {
+  return { open, phase: open ? 'candidacy' : '', votes: new Map(), answers: new Map(), candidates: [], speaker: null, spoke: new Set() };
+}
 
 function sendMayorTurn(p) {
   if (!mayorVote.open || !p.alive) return;
-  sendTo(p, {
-    type: 'mayorTurn',
-    targets: alivePlayers().map((x) => x.name),
-    myVote: mayorVote.votes.get(p.name) || null
-  });
+  if (mayorVote.phase === 'candidacy') {
+    sendTo(p, { type: 'candidacyTurn', answer: mayorVote.answers.has(p.name) ? mayorVote.answers.get(p.name) : null });
+  } else if (mayorVote.phase === 'speech') {
+    sendTo(p, { type: 'candidacySpeech', candidates: mayorVote.candidates, speaker: mayorVote.speaker, me: mayorVote.candidates.includes(p.name) });
+  } else {
+    sendTo(p, {
+      type: 'mayorTurn',
+      targets: mayorVote.candidates.filter((n) => { const x = findPlayer(n); return x && x.alive; }),
+      myVote: mayorVote.votes.get(p.name) || null
+    });
+  }
 }
 
 function openMayorVote() {
-  mayorVote = { open: true, votes: new Map() };
+  mayorVote = newMayorVote(true);
   selection.mayor = new Set();
+  sendToProjector({ action: 'mayorCandidates', hide: true });
   players.forEach((p) => sendTo(p, { type: 'voteClose' }));   // le vote du village (s'il est ouvert) est masqué pendant l'élection
+  alivePlayers().forEach(sendMayorTurn);
+  renderMJDashboard();
+}
+
+function handleMayorCandidacy(conn, data) {
+  const v = senderOf(conn);
+  if (!v || !v.alive || !mayorVote.open || mayorVote.phase !== 'candidacy') return;
+  mayorVote.answers.set(v.name, !!data.run);
+  sendTo(v, { type: 'candidacyAck', answer: !!data.run });
+  if (alivePlayers().every((p) => mayorVote.answers.has(p.name))) { closeCandidacy(); return; }
+  renderMJDashboard();
+}
+
+function mayorCandidatesNow() {
+  return alivePlayers().filter((p) => mayorVote.answers.get(p.name) === true).map((p) => p.name);
+}
+
+function pushCandidatesToProjector() {
+  return sendToProjector({ action: 'mayorCandidates', names: mayorVote.candidates, speaker: mayorVote.phase === 'speech' ? mayorVote.speaker : null });
+}
+
+// Fin des candidatures : les candidats s'affichent sur l'écran secondaire, place aux discours
+function closeCandidacy() {
+  if (!mayorVote.open || mayorVote.phase !== 'candidacy') return;
+  const names = mayorCandidatesNow();
+  if (!names.length) {
+    showToast("👑 Personne ne se présente pour l'instant : attendez des candidats ou clôturez l'élection.", 'info');
+    renderMJDashboard();
+    return;
+  }
+  mayorVote.candidates = names;
+  mayorVote.phase = 'speech';
+  mayorVote.speaker = null;
+  mayorVote.spoke = new Set();
+  const shown = pushCandidatesToProjector();
+  alivePlayers().forEach(sendMayorTurn);
+  showToast(`👑 ${names.length} candidat(s) : ${names.join(', ')}. Donnez la parole à chacun, puis passez au vote.${shown ? '' : ' (écran secondaire fermé)'}`, 'info');
+  renderMJDashboard();
+}
+
+function setMayorSpeaker(name) {
+  if (!mayorVote.open || mayorVote.phase !== 'speech' || !mayorVote.candidates.includes(name)) return;
+  mayorVote.speaker = name;
+  mayorVote.spoke.add(name);
+  pushCandidatesToProjector();
+  alivePlayers().forEach(sendMayorTurn);
+  renderMJDashboard();
+}
+
+function nextMayorSpeaker() {
+  const next = mayorVote.candidates.find((n) => !mayorVote.spoke.has(n));
+  if (!next) { showToast('👑 Tous les candidats ont parlé : passez au vote.', 'info'); return; }
+  setMayorSpeaker(next);
+}
+
+// Fin des discours : le vote s'ouvre sur les téléphones, avec les seuls candidats
+function startMayorBallot() {
+  if (!mayorVote.open || mayorVote.phase !== 'speech') return;
+  mayorVote.phase = 'vote';
+  mayorVote.speaker = null;
+  pushCandidatesToProjector();
   alivePlayers().forEach(sendMayorTurn);
   renderMJDashboard();
 }
 
 function handleMayorVote(conn, data) {
   const v = senderOf(conn);
-  if (!v || !v.alive || !mayorVote.open) return;
+  if (!v || !v.alive || !mayorVote.open || mayorVote.phase !== 'vote') return;
   const t = findPlayer(String(data.target || ''));
-  if (!t || !t.alive) return;
+  if (!t || !t.alive || !mayorVote.candidates.includes(t.name)) return;
   mayorVote.votes.set(v.name, t.name);
   sendTo(v, { type: 'mayorAck', target: t.name });
 
@@ -1669,9 +1744,12 @@ function handleMayorVote(conn, data) {
 function closeMayorVote(silent = false) {
   if (!mayorVote.open) return;
   mayorVote.open = false;
+  sendToProjector({ action: 'mayorCandidates', hide: true });
   players.forEach((p) => sendTo(p, { type: 'mayorClose' }));
   if (villageVote.open) alivePlayers().forEach(sendVoteTurn);   // le vote du village réapparaît s'il était ouvert
-  if (!silent) {
+  if (!silent && mayorVote.phase !== 'vote') {
+    showToast('👑 Élection clôturée sans vote.', 'info');
+  } else if (!silent) {
     const { names, max } = topOf(aliveTally(mayorVote.votes));
     if (names.length === 1) {
       selection.mayor = new Set([names[0]]);
@@ -1882,9 +1960,17 @@ function renderAutomation() {
     ? `🟢 vote ouvert — ${night.wolfFinal.size}/${wolves.length} validé(s) — ${countsText(wolfCounts)} <button type="button" class="auto-btn" data-act="closeWolves">Clore le vote</button>`
     : (night.wolfVictim ? `🔒 victime désignée : <strong>${nameHtml(night.wolfVictim)}</strong>${night.saved ? ' (sauvée par la Sorcière)' : ''}` : '⚪ en attente de l\'appel des loups');
 
-  const mayorStatus = mayorVote.open
-    ? `🟢 élection ouverte — ${mayorVote.votes.size}/${alivePlayers().length} ont voté — ${countsText(aliveTally(mayorVote.votes))} <button type="button" class="auto-btn" data-act="closeMayor">Clore l'élection</button>`
-    : `⚪ fermée <button type="button" class="auto-btn" data-act="openMayor">Ouvrir l'élection</button>`;
+  let mayorStatus;
+  if (!mayorVote.open) {
+    mayorStatus = `⚪ fermée <button type="button" class="auto-btn" data-act="openMayor">Ouvrir l'élection</button>`;
+  } else if (mayorVote.phase === 'candidacy') {
+    mayorStatus = `🟢 candidatures — ${mayorVote.answers.size}/${alivePlayers().length} ont répondu, ${mayorCandidatesNow().length} candidat(s) <button type="button" class="auto-btn" data-act="closeCandidacy">Clore les candidatures</button> <button type="button" class="auto-btn" data-act="closeMayor">Annuler</button>`;
+  } else if (mayorVote.phase === 'speech') {
+    const spk = mayorVote.candidates.map((n) => `<button type="button" class="auto-btn" data-act="mayorSpeaker" data-name="${escapeHtml(n)}">${mayorVote.speaker === n ? '🎤 ' : (mayorVote.spoke.has(n) ? '✔ ' : '')}${escapeHtml(n)}</button>`).join(' ');
+    mayorStatus = `🎤 discours — ${spk} <button type="button" class="auto-btn" data-act="mayorNextSpeaker">Candidat suivant</button> <button type="button" class="auto-btn" data-act="startMayorBallot">Passer au vote</button> <button type="button" class="auto-btn" data-act="closeMayor">Annuler</button>`;
+  } else {
+    mayorStatus = `🟢 vote — ${mayorVote.votes.size}/${alivePlayers().length} ont voté — ${countsText(aliveTally(mayorVote.votes))} <button type="button" class="auto-btn" data-act="closeMayor">Clore l'élection</button>`;
+  }
 
   const voteStatus = villageVote.open
     ? `🟢 vote ouvert — ${villageVote.votes.size}/${alivePlayers().length} ont voté — ${countsText(voteCounts)} <button type="button" class="auto-btn" data-act="closeVote">Clore le vote</button>`
@@ -1946,6 +2032,10 @@ document.addEventListener('click', (e) => {
   else if (btn.dataset.act === 'closeVote') closeVillageVote(false);
   else if (btn.dataset.act === 'openVote') openVillageVote();
   else if (btn.dataset.act === 'openMayor') openMayorVote();
+  else if (btn.dataset.act === 'closeCandidacy') closeCandidacy();
+  else if (btn.dataset.act === 'mayorSpeaker') setMayorSpeaker(btn.dataset.name);
+  else if (btn.dataset.act === 'mayorNextSpeaker') nextMayorSpeaker();
+  else if (btn.dataset.act === 'startMayorBallot') startMayorBallot();
   else if (btn.dataset.act === 'foxModal') openFoxModal();
   else if (btn.dataset.act === 'hunterStart') startHunterSequence(false);
   else if (btn.dataset.act === 'closeMayor') closeMayorVote(false);
