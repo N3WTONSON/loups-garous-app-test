@@ -1,4 +1,4 @@
-const VERSION_APP = "71";
+const VERSION_APP = "77";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=71', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=77', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -454,6 +454,7 @@ function endRoleReview() {
   reviewMode = false;
   stopDayMusic();
   sendToProjector({ action: 'dayVote', show: false });
+  setPhase('day');   // la vidéo de jour est lue seule sur l'écran secondaire jusqu'à « Nuit tombante »
   players.forEach((p) => { sendTo(p, { type: 'roleReview', on: false }); sendTo(p, { type: 'gameStarted', started: true }); });
   showToast('✅ Tous les joueurs ont repris connaissance de leur rôle : la nuit peut tomber.', 'info');
   setNextCall('nuit');
@@ -727,7 +728,7 @@ function isCenteredVideo(fileName) {
 
 function resumePauseMusic() {
   if (!dayPause || gameOver) return;
-  if (!hunterState && !successionPending && projectorOpen()) sendToProjector({ action: 'dayVote', show: true, mode: 'night' });   // tout est annoncé : en attente de la nuit
+  if (!hunterState && !successionPending && projectorOpen()) { setPhase('day'); sendToProjector({ action: 'dayVote', show: true, mode: 'night' }); }   // tout est annoncé : en attente de la nuit
   waitMusicWanted = true;
   startWaitMusic();
 }
@@ -1844,6 +1845,7 @@ function startHunterSequence(thenDay) {
 function hunterIntroEnded() {
   if (hunterChoice) { playHunterShot(); return; }
   hunterState = 'wait';
+  setPhase('day');   // pendant le choix du Chasseur : vidéo de jour en fond
   sendToProjector({ action: 'hunterWaiting', name: hunterPending });   // carte du Chasseur sur l'écran secondaire pendant son choix
   resumePauseMusic();
   showToast("🏹 En attente du tir du Chasseur (il doit choisir sa cible sur son téléphone).", 'info');
