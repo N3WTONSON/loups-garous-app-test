@@ -5,14 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>🧪 Loup-Garou - Régie (MODE TEST)</title>
-  <link rel="stylesheet" href="style.css?v=53">
+  <link rel="stylesheet" href="style.css?v=54">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
 
 <header>
-  <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
+  <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png?v=2" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
   <p>Panneau du Maître du Jeu & Contrôle Ambiance</p>
   <p class="test-banner">🧪 MODE TEST — rôles et ratio libres · téléphones simulés</p>
   
@@ -104,7 +104,7 @@
                   <span>Villageois</span>
                 </button>
                 <button class="btn-role-card" data-pick="Voyante" onclick="addRole('Voyante')">
-                  <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voyante.png" alt="Voyante">
+                  <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voyante%201.png" alt="Voyante">
                   <span>Voyante</span>
                 </button>
                 <button class="btn-role-card" data-pick="Sorcière" onclick="addRole('Sorcière')">
@@ -120,7 +120,7 @@
                   <span>Cupidon</span>
                 </button>
                 <button class="btn-role-card" data-pick="Voleur" onclick="addRole('Voleur')">
-                  <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voleur.png" alt="Voleur">
+                  <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voleur%201.png" alt="Voleur">
                   <span>Voleur</span>
                 </button>
                 <button class="btn-role-card" data-pick="Renard" onclick="addRole('Renard')">
@@ -128,7 +128,7 @@
                   <span>Renard</span>
                 </button>
                 <button class="btn-role-card" data-pick="Petite Fille" onclick="addRole('Petite Fille')">
-                  <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Petite%20Fille.png" alt="Petite Fille">
+                  <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Petite%20Fille.png?v=2" alt="Petite Fille">
                   <span>Petite Fille</span>
                 </button>
               </div>
@@ -185,7 +185,7 @@
               <span>Le Maire</span>
             </button>
             <button class="btn-role-card" data-role="Voleur" data-call="voleur" onclick="playRole('voleur')">
-              <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voleur.png" alt="Voleur">
+              <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voleur%201.png" alt="Voleur">
               <span>Le Voleur</span>
             </button>
             <button class="btn-role-card" data-role="Cupidon" data-call="cupidon" onclick="playRole('cupidon')">
@@ -193,7 +193,7 @@
               <span>Cupidon</span>
             </button>
             <button class="btn-role-card" data-role="Voyante" onclick="playRole('voyante')">
-              <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voyante.png" alt="Voyante">
+              <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voyante%201.png" alt="Voyante">
               <span>La Voyante</span>
             </button>
             <button class="btn-role-card" data-role="Renard" onclick="playRole('renard')">
@@ -251,7 +251,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 53 · MODE TEST</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 54 · MODE TEST</p>
 
   <script>
     (function () {
@@ -268,7 +268,7 @@
           im.src = urls[i];
         })(0);
       }
-      find(["Titre.png", "titre.png"], function (url) {
+      find(["Titre 1.png", "Titre.png", "titre.png"], function (url) {
         var img = document.querySelector(".site-title-img");
         if (url && img) { img.src = url; console.info("Titre chargé depuis :", url); }
         else console.warn("Titre.png introuvable sur Supabase.");
@@ -303,7 +303,7 @@
     });
   </script>
   <script>window.LG_TEST_MODE = true;</script>
-  <script src="script.js?v=53"></script>
-  <script src="test-tools.js?v=53"></script>
+  <script src="script.js?v=54"></script>
+  <script src="test-tools.js?v=54"></script>
 </body>
 </html>

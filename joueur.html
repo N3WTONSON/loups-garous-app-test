@@ -4,13 +4,13 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Loup-Garou - Espace Joueur</title>
-  <link rel="stylesheet" href="style.css?v=53">
+  <link rel="stylesheet" href="style.css?v=54">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
 
   <header>
-    <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
+    <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/joueur/images/Titre%201.png" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
   </header>
 
   <main class="container">
@@ -174,7 +174,7 @@
       <div id="card-area" style="display: none;">
         <!-- Dos de carte cliquable avec image Verso.png -->
         <div id="secret-card" class="card-back" role="button" tabindex="0" onclick="toggleRoleReveal()">
-          <img id="verso-image" src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/joueur/images/Verso.png" alt="Verso de carte" class="verso-img">
+          <img id="verso-image" src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/joueur/images/Verso%201.png" alt="Verso de carte" class="verso-img">
           <span>👁️ Toucher pour révéler</span>
         </div>
 
@@ -202,7 +202,7 @@
           im.src = urls[i];
         })(0);
       }
-      find(["Titre.png", "titre.png"], function (url) {
+      find(["Titre 1.png", "Titre.png", "titre.png"], function (url) {
         var img = document.querySelector(".site-title-img");
         if (url && img) { img.src = url; }
       });
@@ -214,7 +214,7 @@
       });
     })();
   </script>
-  <script src="sim-peer.js?v=53"></script>
-  <script src="player.js?v=53"></script>
+  <script src="sim-peer.js?v=54"></script>
+  <script src="player.js?v=54"></script>
 </body>
 </html>
