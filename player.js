@@ -335,6 +335,7 @@ function toggleRoleReveal() {
   isRevealed = !isRevealed;
 
   if (isRevealed) {
+    try { if (conn && conn.open) conn.send({ type: 'roleSeen' }); } catch (e) { /* ignoré */ }
     cardBack.classList.add('revealed');
     cardBack.querySelector('span').textContent = "🔒 Toucher pour masquer";
     if (versoImg) versoImg.style.display = 'none';

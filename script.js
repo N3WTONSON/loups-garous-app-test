@@ -1,4 +1,4 @@
-const VERSION_APP = "57";
+const VERSION_APP = "58";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -143,7 +143,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=57', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=58', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -243,6 +243,7 @@ function routePlayerMessage(conn, data) {
   else if (data.type === 'mayorVote') handleMayorVote(conn, data);
   else if (data.type === 'mayorCandidacy') handleMayorCandidacy(conn, data);
   else if (data.type === 'rpsPick') handleRpsPick(conn, data);
+  else if (data.type === 'roleSeen') handleRoleSeen(conn);
   else if (data.type === 'mayorSuccessor') handleMayorSuccessor(conn, data);
 }
 
@@ -368,6 +369,41 @@ function updateMJRoleList() {
   }
 }
 
+// ---- Début de partie : fenêtre quand tous les joueurs ont pris connaissance de leur rôle ----
+let allSeenShown = false;
+
+function closeAllSeenModal() {
+  const m = document.getElementById('all-seen-modal');
+  if (m) m.remove();
+}
+
+function showAllSeenModal() {
+  closeAllSeenModal();
+  const m = document.createElement('div');
+  m.id = 'all-seen-modal';
+  m.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);';
+  m.innerHTML = '<div style="background:#1a1d2b;border:2px solid #fcd34d;border-radius:16px;padding:28px 34px;max-width:480px;text-align:center;color:#f4dcdc;box-shadow:0 0 30px rgba(0,0,0,0.8);">' +
+    '<div style="font-size:3rem;">✅</div>' +
+    '<h2 class="titre-wolf" style="margin:10px 0;color:#fcd34d;">Tous les joueurs sont prêts</h2>' +
+    '<p style="margin:0 0 18px;">Tous les joueurs ont pris connaissance de leur rôle. Vous pouvez commencer la partie.</p>' +
+    '<button type="button" class="btn btn-day" onclick="closeAllSeenModal()">OK, on commence</button></div>';
+  document.body.appendChild(m);
+}
+
+function checkAllSeen() {
+  if (!distributed || gameStarted || allSeenShown || !players.length) return;
+  if (!players.every((p) => p.seenRole)) return;
+  allSeenShown = true;
+  showAllSeenModal();
+}
+
+function handleRoleSeen(conn) {
+  const p = senderOf(conn);
+  if (!p || !distributed) return;
+  p.seenRole = true;
+  checkAllSeen();
+}
+
 function distributeRolesNetwork() {
   if (players.length === 0 || roles.length !== players.length) {
     alert("Vérifiez que le nombre de joueurs équivaut au nombre de rôles.");
@@ -402,6 +438,7 @@ function distributeRolesNetwork() {
     player.alive = true;
     player.inLove = false;
     player.diedOfLove = false;
+    player.seenRole = false;
     if (player.conn && player.conn.open) {
       player.conn.send({ type: 'assignRole', role: player.role });
       player.conn.send({ type: 'status', alive: true });
@@ -410,6 +447,8 @@ function distributeRolesNetwork() {
     }
   });
   distributed = true;
+  allSeenShown = false;
+  closeAllSeenModal();
   activeCallRoles = new Set(roles);
   calledOnce = new Set();
   thiefOffers = new Map();
@@ -883,6 +922,7 @@ function playCommand(cmd) {
     openMayorVote(true);                              // les joueurs votent depuis leur téléphone
     if (!gameStarted) {                           // premier appel du Maire : la partie commence
       gameStarted = true;
+      closeAllSeenModal();
       players.forEach((p) => sendTo(p, { type: 'gameStarted', started: true }));
     }
   } else if (cmd === 'voter') {
