@@ -1,4 +1,4 @@
-const VERSION_APP = "63";
+const VERSION_APP = "66";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=63', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=66', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -171,7 +171,11 @@ window.addEventListener('message', (event) => {
     }
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
-    if (String(data.url || '').includes('Maire.mp4') && waitMusicWanted ) startWaitMusic();
+    if (String(data.url || '').includes('Maire.mp4')) {
+      if (waitMusicWanted) startWaitMusic();
+      // fin de la vidéo : les joueurs sont invités à se présenter à l'élection
+      if (mayorVote.open && mayorVote.phase === 'candidacy') sendToProjector({ action: 'mayorCandidates', names: [], speaker: null, title: '👑 Élection du Maire', sub: '🙋 Joueurs, présentez-vous à l\'élection ! Répondez sur votre téléphone.' });
+    }
     if (currentOverlayFile && mediaUrl('video', currentOverlayFile) === data.url) {
       overlayMode = null;
       currentOverlayFile = null;
@@ -380,16 +384,22 @@ function closeAllSeenModal() {
   if (m) m.remove();
 }
 
-function showAllSeenModal() {
+function confirmRoleReview() {
+  closeAllSeenModal();
+  endRoleReview();
+}
+
+function showAllSeenModal(kind) {
+  const review = kind === 'review';
   closeAllSeenModal();
   const m = document.createElement('div');
   m.id = 'all-seen-modal';
   m.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.72);';
   m.innerHTML = '<div style="background:#1a1d2b;border:2px solid #fcd34d;border-radius:16px;padding:28px 34px;max-width:480px;text-align:center;color:#f4dcdc;box-shadow:0 0 30px rgba(0,0,0,0.8);">' +
     '<div style="font-size:3rem;">✅</div>' +
-    '<h2 class="titre-wolf" style="margin:10px 0;color:#fcd34d;">Tous les joueurs sont prêts</h2>' +
-    '<p style="margin:0 0 18px;">Tous les joueurs ont pris connaissance de leur rôle. Vous pouvez commencer la partie.</p>' +
-    '<button type="button" class="btn btn-day" onclick="closeAllSeenModal()">OK, on commence</button></div>';
+    '<h2 class="titre-wolf" style="margin:10px 0;color:#fcd34d;">' + (review ? 'Rôles revus par tous les joueurs' : 'Tous les joueurs sont prêts') + '</h2>' +
+    '<p style="margin:0 0 18px;">' + (review ? 'Tous les joueurs ont repris connaissance de leur rôle. Laissez-leur le temps de le mémoriser, puis cliquez sur OK : les cartes se masqueront et la nuit pourra tomber.' : 'Tous les joueurs ont pris connaissance de leur rôle. Vous pouvez commencer la partie.') + '</p>' +
+    '<button type="button" class="btn btn-day" onclick="' + (review ? 'confirmRoleReview()' : 'closeAllSeenModal()') + '">' + (review ? 'OK, passer à la nuit' : 'OK, on commence') + '</button></div>';
   document.body.appendChild(m);
 }
 
@@ -406,7 +416,7 @@ function checkAllSeen() {
   if (!distributed || (gameStarted && !reviewMode) || allSeenShown || !players.length) return;
   if (!players.every((p) => p.seenRole)) return;
   allSeenShown = true;
-  if (reviewMode) { endRoleReview(); return; }
+  if (reviewMode) { showAllSeenModal('review'); return; }
   showAllSeenModal();
 }
 
@@ -975,6 +985,7 @@ function playCommand(cmd) {
     if (startBlocked()) return;
     if (mayorCalled) { showToast('👑 Le Maire a déjà été appelé : le bouton est bloqué.', 'info'); return; }
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
+    playAudioFile("Maire.mp3");                   // voix du MJ : « Le village va maintenant élire son maire ! »
     stopLobbyMusic();
     mayorCalled = true;
     setNextCall(activeCallRoles.has('Voleur') && !calledOnce.has('voleur') ? 'voleur' : 'nuit');

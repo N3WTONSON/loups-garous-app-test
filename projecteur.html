@@ -471,6 +471,7 @@
   </div>
 
   <!-- Vidéos d'annonce + noms des joueurs -->
+  <div id="sound-unlock" style="display:none;position:fixed;top:1.2vh;right:1.2vw;z-index:99;padding:1vh 1.4vw;border-radius:1vh;background:rgba(252,211,77,0.95);color:#1a1d2b;font:600 2.4vh 'Segoe UI',sans-serif;cursor:pointer;">🔊 Cliquez sur cet écran pour activer le son</div>
   <video id="event-video" playsinline></video>
   <div id="death-overlay"><div id="death-list"></div></div>
   <div id="victory-overlay">
@@ -505,7 +506,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 63');
+    console.info('Projecteur - version 66');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -886,6 +887,19 @@
       if (window.opener) window.opener.postMessage({ action: 'eventEnded' }, '*');   // la régie peut enchaîner (ex. lever du jour)
     }
 
+    // --- Activation du son : le navigateur exige un clic dans cette fenêtre pour autoriser les vidéos avec son ---
+    let soundBlocked = false;
+    function showSoundUnlock() { document.getElementById('sound-unlock').style.display = 'block'; }
+    function unlockSound() {
+      soundBlocked = false;
+      document.getElementById('sound-unlock').style.display = 'none';
+      try { eventVideo.muted = false; if (eventActive) eventVideo.volume = MAX_VOLUME; } catch (e) {}
+      try { overlayVideo.muted = false; } catch (e) {}
+    }
+    try { if (!(navigator.userActivation && navigator.userActivation.hasBeenActive)) showSoundUnlock(); } catch (e) {}
+    window.addEventListener('pointerdown', unlockSound, true);
+    window.addEventListener('keydown', unlockSound, true);
+
     // effets sonores par-dessus la vidéo d'annonce (Effet sorcière avant la fin ; hurlement à la révélation de la carte)
     let sfxAudio = null, sfxTimer = null;
     function startSfx(url) {
@@ -944,7 +958,17 @@
       eventVideo.style.display = 'block';
       eventVideo.currentTime = 0;
       fadeInVideo(eventVideo);                 // volume plafonné + fondu d'entrée
-      eventVideo.play().catch((err) => console.error('Erreur vidéo d\'annonce :', err));
+      eventVideo.muted = false;
+      eventVideo.onplaying = () => { eventVideo.muted = false; if (eventVideo.volume < 0.05 && !soundBlocked) eventVideo.volume = MAX_VOLUME; };
+      eventVideo.play().catch((err) => {
+        console.error('Erreur vidéo d\'annonce :', err);
+        if (err && err.name === 'NotAllowedError') {       // le navigateur bloque le son : la vidéo démarre muette, un clic active le son
+          soundBlocked = true;
+          showSoundUnlock();
+          eventVideo.muted = true;
+          eventVideo.play().catch(() => {});
+        }
+      });
       if (data.namesAt === 'start' && !noNames) showNames();
     }
 
