@@ -112,7 +112,7 @@ function showJoinForm() {
 function showGame(name) {
   document.getElementById('join-card').style.display = 'none';
   document.getElementById('game-card').style.display = 'block';
-  document.getElementById('welcome-title').textContent = `Joueur : ${name}`;
+  document.getElementById('welcome-title').textContent = name;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -220,6 +220,12 @@ function connect(room, name, token, isAuto) {
         hidePanel('vote-panel');
       } else if (data.type === 'mayorTurn') {
         showMayorPanel(data);
+      } else if (data.type === 'rpsTurn') {
+        showRpsTurn(data);
+      } else if (data.type === 'rpsAck') {
+        showRpsAck(data.pick);
+      } else if (data.type === 'rpsResult') {
+        showRpsResult(data);
       } else if (data.type === 'candidacyTurn') {
         showCandidacyAsk(data.answer);
       } else if (data.type === 'candidacyAck') {
@@ -450,7 +456,7 @@ function setAliveUI(alive) {
   const banner = document.getElementById('dead-banner');
   if (banner) banner.style.display = alive ? 'none' : 'block';
   if (!alive) {
-    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'candidacy-panel', 'fox-panel'].forEach(hidePanel);
+    ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'candidacy-panel', 'rps-panel', 'fox-panel'].forEach(hidePanel);
   }
 }
 
@@ -694,6 +700,55 @@ function showSeerResult(name, role) {
   showPanel('seer-panel');
 }
 
+// --- Égalité à l'élection du Maire : Pierre, feuille, ciseaux ---
+const RPS_ICON = { pierre: '✊', feuille: '✋', ciseaux: '✌️' };
+let rpsHideTimer = null;
+
+function rpsEnable(on) {
+  document.querySelectorAll('#rps-buttons button').forEach((b) => { b.disabled = !on; });
+}
+
+function showRpsTurn(data) {
+  clearTimeout(rpsHideTimer);
+  const me = session && session.name;
+  const others = (data.names || []).filter((n) => n !== me);
+  document.getElementById('rps-info').textContent = `Égalité pour la mairie ! Tu affrontes ${others.join(' et ')}. Manche ${data.round || 1} : choisis ton signe.`;
+  document.getElementById('rps-result').textContent = '';
+  rpsEnable(!data.myPick);
+  if (data.myPick) showRpsAck(data.myPick);
+  showPanel('rps-panel');
+}
+
+function rpsPlay(pick) {
+  if (!conn || !conn.open) return;
+  rpsEnable(false);
+  conn.send({ type: 'rpsPick', pick });
+}
+
+function showRpsAck(pick) {
+  rpsEnable(false);
+  document.getElementById('rps-result').textContent = `Tu as joué ${RPS_ICON[pick] || ''} ${pick}. En attente de l'adversaire…`;
+}
+
+function showRpsResult(data) {
+  const el = document.getElementById('rps-result');
+  const me = session && session.name;
+  if (data.cancel) {
+    el.textContent = 'Le Maître du Jeu a annulé le duel.';
+  } else {
+    const lines = Object.entries(data.picks || {}).map(([n, p]) => `${n} : ${RPS_ICON[p] || ''} ${p}`).join('  —  ');
+    let verdict;
+    if (data.winner) verdict = data.winner === me ? '🏆 Tu gagnes : tu deviens Maire !' : `${data.winner} gagne et devient Maire.`;
+    else if (data.draw) verdict = 'Égalité, on recommence…';
+    else verdict = (data.next || []).includes(me) ? 'Tu passes à la manche suivante…' : 'Tu es éliminé du duel.';
+    el.textContent = lines + '\n' + verdict;
+  }
+  rpsEnable(false);
+  showPanel('rps-panel');
+  clearTimeout(rpsHideTimer);
+  if (data.winner || data.cancel) rpsHideTimer = setTimeout(() => hidePanel('rps-panel'), 6000);
+}
+
 // --- Candidatures du Maire : « Je me présente » / « Je ne me présente pas », puis discours oraux ---
 function showCandidacyAsk(answer) {
   const asked = answer === true || answer === false;
@@ -811,9 +866,9 @@ function showGameOver(winner) {
   const el = document.getElementById('gameover-banner');
   if (!el) return;
   if (!winner) { el.style.display = 'none'; return; }   // la partie reprend
-  el.textContent = winner === 'village' ? '🏆 Victoire du village ! Tous les Loups-Garous sont morts.' : '🏁 Partie terminée.';
+  el.textContent = winner === 'village' ? '🏆 Victoire du village ! Tous les Loups-Garous sont morts.' : (winner === 'wolves' ? '🐺 Victoire des Loups-Garous ! Les villageois ont tous été éliminés.' : '🏁 Partie terminée.');
   el.style.display = 'block';
-  ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'candidacy-panel', 'fox-panel'].forEach(hidePanel);
+  ['cupid-panel', 'wolf-panel', 'witch-panel', 'vote-panel', 'thief-panel', 'seer-panel', 'mayor-panel', 'candidacy-panel', 'rps-panel', 'fox-panel'].forEach(hidePanel);
 }
 
 // --- Renard : il désigne UN joueur (noms uniquement) puis lit la réponse OUI / NON du Maître du Jeu ---

@@ -843,3 +843,9 @@ input[type="number"] {
 /* --- Carte « Élection du Maire » de la régie --- */
 .mayor-controls-buttons { display: grid; gap: 8px; }
 .mayor-controls-buttons .btn { width: 100%; margin: 0; }
+
+/* --- Pierre, feuille, ciseaux (égalité à la mairie) --- */
+.rps-buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 12px; }
+.rps-btn { font-size: 2.4rem; padding: 12px 4px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.rps-btn span { font-size: 0.85rem; }
+.rps-result { white-space: pre-line; font-weight: bold; color: #fde68a; text-align: center; }

@@ -1,4 +1,4 @@
-const VERSION_APP = "49";
+const VERSION_APP = "50";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
 
@@ -141,7 +141,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=49', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=50', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -154,9 +154,9 @@ window.addEventListener('message', (event) => {
     syncLobbyToProjector();
   } else if (data.action === 'eventEnded') {
     // l'annonce de mort vient de se terminer : victoire éventuelle d'abord, sinon l'annonce suivante, puis le lever du jour
-    if (pendingHowl) { pendingHowl = false; playAudioFile("Le hurlement du loup 1.mp3"); }
+    if (voteEventPending) { voteEventPending = false; waitMusicWanted = true; if (!gameOver) startWaitMusic(); }   // fin de l'élimination : la musique reprend pendant la pause
     if (hunterState) { onHunterEventEnded(); return; }
-    if (victoryPending && allWolvesDead()) { dayQueue = null; showVictory(); }
+    if (victoryPending && currentWinner()) { dayQueue = null; showVictory(); }
     else {
       victoryPending = false;
       if (dayQueue) nextDayStep();
@@ -164,7 +164,7 @@ window.addEventListener('message', (event) => {
     }
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
-    if (String(data.url || '').includes('Maire.mp4') && waitMusicWanted && !(mayorVote.open && mayorVote.phase === 'speech')) startWaitMusic();
+    if (String(data.url || '').includes('Maire.mp4') && waitMusicWanted ) startWaitMusic();
     if (currentOverlayFile && mediaUrl('video', currentOverlayFile) === data.url) {
       overlayMode = null;
       currentOverlayFile = null;
@@ -239,6 +239,7 @@ function routePlayerMessage(conn, data) {
   else if (data.type === 'hunterShoot') handleHunterShot(conn, data);
   else if (data.type === 'mayorVote') handleMayorVote(conn, data);
   else if (data.type === 'mayorCandidacy') handleMayorCandidacy(conn, data);
+  else if (data.type === 'rpsPick') handleRpsPick(conn, data);
   else if (data.type === 'mayorSuccessor') handleMayorSuccessor(conn, data);
 }
 
@@ -575,7 +576,7 @@ function setProjectorVideoVolume(vol, duration = 600) {
 // ---- Limite du niveau audio : aucun son ne dépasse MAX_VOLUME, et chaque son démarre en fondu (jamais « d'un seul coup ») ----
 const MAX_VOLUME = 0.8;          // plafond du volume (1 = maximum) pour tous les sons de la régie
 const FADE_IN_MS = 500;
-const LOUD_AUDIO = { "Fermer les yeux.mp3": 1.0 };   // sons un peu plus forts que le plafond habituel          // durée du fondu d'entrée
+const LOUD_AUDIO = { "Fermer les yeux.mp3": 1.0, "Appel Cupidon V2.mp3": 1.0 };   // sons un peu plus forts que le plafond habituel          // durée du fondu d'entrée
 
 function fadeInAudio(audio, ms = FADE_IN_MS, max = MAX_VOLUME) {
   const steps = 10;
@@ -628,7 +629,9 @@ function playScene(videoId, loop = true) {
 const MUSIC_LOBBY = "Feast Circle 1.mp3";
 const MUSIC_WAIT_TRACKS = ["Dusk in the Tavern 1.mp3", "Dusk in the Tavern 2.mp3", "Tavern at Dusk 1.mp3", "Tavern at Dusk 2.mp3"];
 const MUSIC_WAIT_VOLUME = 0.5;
-const MUSIC_DUCK_VOLUME = 0.12;   // niveau pendant que le MJ parle (voix enregistrées)
+const MUSIC_DUCK_VOLUME = 0.12;
+const MUSIC_SPEECH_VOLUME = 0.06;  // niveau pendant les discours des candidats (musique très discrète)
+let musicQuiet = false;   // niveau pendant que le MJ parle (voix enregistrées)
 
 let musicAudio = null;
 let musicMode = null;        // 'lobby' | 'wait' | null
@@ -642,7 +645,10 @@ let waitMusicWanted = false;   // la musique d'attente est autorisée entre l'ap
 
 function musicLevel() {
   const base = musicMode === 'lobby' ? MAX_VOLUME : MUSIC_WAIT_VOLUME;
-  return musicDuck ? Math.min(base, MUSIC_DUCK_VOLUME) : base;
+  let v = base;
+  if (musicQuiet && musicMode === 'wait') v = Math.min(v, MUSIC_SPEECH_VOLUME);
+  if (musicDuck) v = Math.min(v, MUSIC_DUCK_VOLUME);
+  return v;
 }
 
 function setMusicVolume(ms = 300) {
@@ -698,6 +704,7 @@ function launchMusic(name, loop, onEnd) {
 
 function stopMusic(ms = 800) {
   musicToken++;
+  musicQuiet = false;
   musicMode = null;
   musicPaused = false;
   clearTimeout(mayorMusicTimer);
@@ -748,6 +755,11 @@ function startWaitMusic() {
 
 function stopWaitMusic() { if (musicMode === 'wait') stopMusic(); }
 
+function setWaitMusicQuiet(on) {
+  musicQuiet = on;
+  setMusicVolume(700);
+}
+
 function setWaitMusicPaused(paused) {
   if (musicMode !== 'wait') return;
   musicPaused = paused;
@@ -780,7 +792,7 @@ function pendingNames(kind) {
   return [...selection[kind]].filter((n) => { const p = findPlayer(n); return p && p.alive; });
 }
 
-let pendingHowl = false;   // un Loup-Garou vient d'être éliminé par le village : hurlement à la fin de la vidéo
+let voteEventPending = false;   // une annonce d'élimination par le village est en cours
 let nightDeaths = 0;   // morts de la nuit (loups, poison, Chasseur, chagrin) : choisit l'audio du lever du jour
 let dayQueue = null;   // annonces restantes avant le lever du jour (null = aucune annonce en cours)
 
@@ -1207,6 +1219,7 @@ function resetGameAutomation() {
   gameStarted = false;
   mayor = null;
   mayorCalled = false;
+  if (rps) { clearTimeout(rps.timer); rps = null; }
   waitMusicWanted = false;
   successionPending = null;
   mayorVote = newMayorVote(false);
@@ -1230,6 +1243,20 @@ function resetGameAutomation() {
 let gameOver = false;
 let victoryPending = false;
 
+// Les Loups-Garous gagnent quand il ne reste plus (ou plus qu'un seul) villageois (tout rôle autre que Loup-Garou) face à eux
+function wolvesWin() {
+  const wolves = players.filter((p) => p.role === 'Loup-Garou' && p.alive).length;
+  const others = players.filter((p) => p.role !== 'Loup-Garou' && p.alive).length;
+  return wolves > 0 && others <= 1;
+}
+
+function currentWinner() {
+  if (!distributed) return null;
+  if (allWolvesDead()) return 'village';
+  if (wolvesWin()) return 'wolves';
+  return null;
+}
+
 function allWolvesDead() {
   const wolves = players.filter((p) => p.role === 'Loup-Garou');
   return wolves.length > 0 && wolves.every((p) => !p.alive);
@@ -1237,21 +1264,22 @@ function allWolvesDead() {
 
 // mode 'event' : la victoire est annoncée à la fin de la vidéo d'annonce ; mode 'delay' : après l'affichage des noms
 function checkVictory(mode) {
-  if (gameOver || victoryPending || !distributed || !allWolvesDead()) return;
+  if (gameOver || victoryPending || !distributed || !currentWinner()) return;
   victoryPending = true;
   if (mode === 'delay') setTimeout(() => { if (victoryPending) showVictory(); }, 8500);
 }
 
 function showVictory() {
   victoryPending = false;
-  if (gameOver || !allWolvesDead()) return;
+  const winner = currentWinner();
+  if (gameOver || !winner) return;
   gameOver = true;
   closeVillageVote(true);
   closeMayorVote(true);
   stopMusic();
-  const shown = sendToProjector({ action: 'victory', winner: 'village' });
-  players.forEach((p) => sendTo(p, { type: 'gameOver', winner: 'village' }));
-  showToast(`🏆 Tous les Loups-Garous sont morts : victoire du village !${shown ? '' : ' (écran secondaire fermé)'}`, 'info');
+  const shown = sendToProjector({ action: 'victory', winner });
+  players.forEach((p) => sendTo(p, { type: 'gameOver', winner }));
+  showToast((winner === 'wolves' ? '🐺 Les Loups-Garous ont éliminé le camp des villageois : victoire des Loups-Garous !' : '🏆 Tous les Loups-Garous sont morts : victoire du village !') + (shown ? '' : ' (écran secondaire fermé)'), 'info');
   renderMJDashboard();
 }
 
@@ -1260,7 +1288,7 @@ function cancelVictory() {
   gameOver = false;
   sendToProjector({ action: 'victoryCancel' });
   players.forEach((p) => sendTo(p, { type: 'gameOver', winner: null }));
-  showToast("La partie reprend : un Loup-Garou est de nouveau en vie.", 'info');
+  showToast("La partie reprend : la victoire n'est plus valable.", 'info');
   renderMJDashboard();
 }
 
@@ -1301,7 +1329,7 @@ function setAlive(p, alive) {
   sendTo(p, { type: 'status', alive });
   updateCallButtons();
   if (alive && hunterPending === p.name) cancelHunter();
-  if (alive && !allWolvesDead()) {
+  if (alive && !currentWinner()) {
     victoryPending = false;
     if (gameOver) cancelVictory();
   }
@@ -1341,6 +1369,7 @@ function resyncPlayer(p) {
     sendTo(p, { type: 'lover', partner: partner ? partner.name : null });
   }
   if (successionPending === p.name) sendSuccessionTurn(p);
+  if (rps && rps.names.includes(p.name) && !rps.picks.has(p.name)) sendRpsTurn(p);
   if (hunterPending === p.name) { if (hunterChoice) sendTo(p, { type: 'hunterDone' }); else sendHunterTurn(p); }
   if (gameStarted) sendTo(p, { type: 'gameStarted', started: true });
   if (!p.alive) return;
@@ -1626,7 +1655,7 @@ function finishHunter() {
   hunterDone = true;
   selection.hunter = new Set();
   renderMJDashboard();
-  if (victoryPending && allWolvesDead()) { dayQueue = null; showVictory(); return; }
+  if (victoryPending && currentWinner()) { dayQueue = null; showVictory(); return; }
   victoryPending = false;
   if (thenDay && dayQueue) nextDayStep();     // le jour se lève après le tir
 }
@@ -1853,6 +1882,7 @@ function sendMayorTurn(p) {
 
 function openMayorVote(withVideo = false) {
   waitMusicWanted = true;
+  musicQuiet = false;
   mayorVote = newMayorVote(true);
   selection.mayor = new Set();
   sendToProjector({ action: 'mayorCandidates', hide: true });
@@ -1897,7 +1927,7 @@ function closeCandidacy() {
   mayorVote.spoke = new Set();
   const shown = pushCandidatesToProjector();
   clearTimeout(mayorMusicTimer);
-  setWaitMusicPaused(true);   // silence pendant les discours
+  setWaitMusicQuiet(true);    // musique très discrète pendant les discours
   alivePlayers().forEach(sendMayorTurn);
   showToast(`👑 ${names.length} candidat(s) : ${names.join(', ')}. Donnez la parole à chacun, puis passez au vote.${shown ? '' : ' (écran secondaire fermé)'}`, 'info');
   renderMJDashboard();
@@ -1932,6 +1962,12 @@ function endMayorSpeech() {
 function renderMayorControls() {
   const card = document.getElementById('mayor-controls');
   if (!card) return;
+  if (rps) {
+    card.style.display = '';
+    document.getElementById('mayor-controls-info').innerHTML = `✊✋✌️ Égalité ! Pierre, feuille, ciseaux (manche ${rps.round}) entre ${rps.names.map(nameHtml).join(', ')} — ${rps.picks.size}/${rps.names.length} ont joué.`;
+    document.getElementById('mayor-controls-buttons').innerHTML = '<button type="button" class="btn btn-danger" onclick="cancelRps()">✖ Annuler (désigner le Maire à la main)</button>';
+    return;
+  }
   if (!mayorVote.open) { card.style.display = 'none'; return; }
   card.style.display = '';
   const info = document.getElementById('mayor-controls-info');
@@ -1966,6 +2002,7 @@ function startMayorBallot() {
   if (!mayorVote.open || mayorVote.phase !== 'speech') return;
   mayorVote.phase = 'vote';
   mayorVote.speaker = null;
+  setWaitMusicQuiet(false);
   if (musicMode === 'wait') setWaitMusicPaused(false); else startWaitMusic();
   pushCandidatesToProjector();
   alivePlayers().forEach(sendMayorTurn);
@@ -1991,6 +2028,7 @@ function handleMayorVote(conn, data) {
 function closeMayorVote(silent = false) {
   if (!mayorVote.open) return;
   mayorVote.open = false;
+  if (musicQuiet) setWaitMusicQuiet(false);
   if (silent) { waitMusicWanted = false; stopWaitMusic(); }
   else if (waitMusicWanted) { if (musicMode === 'wait') setWaitMusicPaused(false); else if (overlayMode !== 'full') startWaitMusic(); }   // la musique continue pendant la pause
   sendToProjector({ action: 'mayorCandidates', hide: true });
@@ -2005,11 +2043,85 @@ function closeMayorVote(silent = false) {
       showToast(`👑 ${names[0]} a le plus de votes (${max}).`, 'info');
     } else if (names.length > 1) {
       selection.mayor = new Set();
-      showToast(`👑 Égalité entre ${names.join(', ')} : désignez le Maire à la main (ou rouvrez l'élection).`, 'info');
+      startMayorTieBreak(names);
     } else {
       showToast("👑 Aucun vote exprimé pour le Maire.", 'info');
     }
   }
+  renderMJDashboard();
+}
+
+// ---- Égalité : les candidats ex æquo jouent à Pierre, feuille, ciseaux sur leur téléphone ----
+let rps = null;   // { names, picks: Map, round, timer }
+const RPS_BEATS = { pierre: 'ciseaux', feuille: 'pierre', ciseaux: 'feuille' };
+
+function sendRpsTurn(p) {
+  if (!rps || !p || !rps.names.includes(p.name)) return;
+  sendTo(p, { type: 'rpsTurn', names: rps.names, round: rps.round, myPick: rps.picks.get(p.name) || null });
+}
+
+function pushRpsToProjector() {
+  sendToProjector({ action: 'mayorCandidates', names: rps.names, speaker: null, sub: '✊ ✋ ✌️  Égalité ! Pierre, feuille, ciseaux…' });
+}
+
+function startMayorTieBreak(names) {
+  rps = { names: [...names], picks: new Map(), round: 1, timer: null };
+  rps.names.forEach((n) => sendRpsTurn(findPlayer(n)));
+  pushRpsToProjector();
+  showToast(`👑 Égalité entre ${names.join(', ')} : ils jouent à Pierre, feuille, ciseaux sur leur téléphone.`, 'info');
+  renderMJDashboard();
+}
+
+function handleRpsPick(conn, data) {
+  const v = senderOf(conn);
+  const pick = String(data.pick || '');
+  if (!rps || !v || !rps.names.includes(v.name) || rps.picks.has(v.name) || !RPS_BEATS[pick]) return;
+  rps.picks.set(v.name, pick);
+  sendTo(v, { type: 'rpsAck', pick });
+  if (rps.names.every((n) => rps.picks.has(n))) resolveRpsRound();
+  else renderMJDashboard();
+}
+
+function resolveRpsRound() {
+  const picks = Object.fromEntries(rps.picks);
+  const shapes = [...new Set(rps.picks.values())];
+  let winners = null;
+  if (shapes.length === 2) {
+    const [a, b] = shapes;
+    const win = RPS_BEATS[a] === b ? a : b;
+    winners = rps.names.filter((n) => rps.picks.get(n) === win);
+  }
+  const known = rps.names.slice();
+  if (winners && winners.length === 1) {
+    const winner = winners[0];
+    known.forEach((n) => sendTo(findPlayer(n), { type: 'rpsResult', picks, winner }));
+    rps = null;
+    selection.mayor = new Set([winner]);
+    showToast(`👑 ${winner} gagne au Pierre, feuille, ciseaux : il devient Maire.`, 'info');
+    setTimeout(() => { if (!mayor || mayor !== winner) announceMayor(); }, 3500);
+    renderMJDashboard();
+    return;
+  }
+  // égalité parfaite (ou plusieurs gagnants) : on rejoue entre les joueurs encore en lice
+  const next = winners || rps.names;
+  known.forEach((n) => sendTo(findPlayer(n), { type: 'rpsResult', picks, draw: !winners, next }));
+  rps.names = next.slice();
+  rps.picks = new Map();
+  rps.round++;
+  pushRpsToProjector();
+  clearTimeout(rps.timer);
+  const r = rps;
+  r.timer = setTimeout(() => { if (rps === r) rps.names.forEach((n) => sendRpsTurn(findPlayer(n))); }, 3500);
+  renderMJDashboard();
+}
+
+function cancelRps() {
+  if (!rps) return;
+  clearTimeout(rps.timer);
+  rps.names.forEach((n) => sendTo(findPlayer(n), { type: 'rpsResult', cancel: true }));
+  rps = null;
+  sendToProjector({ action: 'mayorCandidates', hide: true });
+  showToast('👑 Pierre, feuille, ciseaux annulé : désignez le Maire à la main.', 'info');
   renderMJDashboard();
 }
 
@@ -2129,7 +2241,7 @@ function closeVillageVote(silent = false) {
 const EVENTS = {
   wolves: { video: 'Mort Loup.mp4',     namesAt: 'start', title: '🐺 Mort par les loups-garous', button: '🐺 Annoncer la mort (loups)' },
   poison: { video: 'Empoisoner.mp4',    namesAt: 'end',   title: '☠️ Mort par empoisonnement',   button: '☠️ Annoncer l\'empoisonnement' },
-  hunter: { video: 'Mort tire.mp4',       namesAt: 'end', stopScene: true,   title: '🏹 Tir du Chasseur',            button: '🏹 Annoncer le tir du Chasseur' },
+  hunter: { video: 'Mort tire.mp4',       namesAt: 'start', stopScene: true,   title: '🏹 Tir du Chasseur',            button: '🏹 Annoncer le tir du Chasseur' },
   vote:   { video: 'Elimination 2.mp4', namesAt: 'end', stopScene: true,   title: '🗳️ Élimination par le village', button: '🗳️ Annoncer l\'élimination' }
 };
 
@@ -2150,7 +2262,7 @@ function announceKillEvent(kind, opts = {}) {
 
   const deaths = killPlayers(names);
   if (kind !== 'vote') nightDeaths += deaths.length;
-  else if (deaths.some((d) => d.role === 'Loup-Garou')) pendingHowl = true;
+  else voteEventPending = true;
   selection[kind] = new Set();
   if (kind === 'wolves') night.wolfVictim = null;
   if (kind === 'poison') night.poisoned = null;
@@ -2163,7 +2275,11 @@ function announceKillEvent(kind, opts = {}) {
   overlayMode = null;
   currentOverlayFile = null;
 
-  sendToProjector({ action: 'eventVideo', url: mediaUrl('video', cfg.video), deaths, namesAt: cfg.namesAt, stopScene: !!cfg.stopScene, cause: kind });
+  // effets sonores joués par l'écran secondaire par-dessus la vidéo
+  const sfx = {};
+  if (kind === 'poison') sfx.before = { url: mediaUrl('audio', 'Effet sorciere.mp3'), secs: 4 };   // un peu avant la fin de la vidéo, jusqu'à la fin de l'annonce
+  if ((kind === 'vote' || kind === 'hunter') && deaths.some((d) => d.role === 'Loup-Garou')) sfx.reveal = { url: mediaUrl('audio', 'Le hurlement du loup 1.mp3') };   // à la révélation de la carte
+  sendToProjector({ action: 'eventVideo', url: mediaUrl('video', cfg.video), deaths, namesAt: cfg.namesAt, stopScene: !!cfg.stopScene, cause: kind, sfx });
   checkVictory('event');
   renderMJDashboard();
   showToast(deaths.map((d) => (d.love ? `💔 ${d.name} meurt de chagrin` : `💀 ${d.name}`)).join(' — '), 'info');

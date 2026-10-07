@@ -453,9 +453,9 @@
   <video id="event-video" playsinline></video>
   <div id="death-overlay"><div id="death-list"></div></div>
   <div id="victory-overlay">
-    <div class="victory-trophy">🏆</div>
-    <div class="victory-title">Victoire du village !</div>
-    <div class="victory-sub">Tous les Loups-Garous ont été éliminés</div>
+    <div id="victory-trophy" class="victory-trophy">🏆</div>
+    <div id="victory-title" class="victory-title">Victoire du village !</div>
+    <div id="victory-sub" class="victory-sub">Tous les Loups-Garous ont été éliminés</div>
   </div>
   <div id="candidates-overlay">
     <div class="cand-title">👑 Candidats à la mairie</div>
@@ -473,7 +473,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 49');
+    console.info('Projecteur - version 50');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -759,11 +759,17 @@
 
     // --- VICTOIRE DU VILLAGE ---
     function hideVictory() { document.getElementById('victory-overlay').style.display = 'none'; }
-    function showVictory() { document.getElementById('victory-overlay').style.display = 'flex'; }
+    function showVictory(winner) {
+      const wolves = winner === 'wolves';
+      document.getElementById('victory-trophy').textContent = wolves ? '🐺' : '🏆';
+      document.getElementById('victory-title').textContent = wolves ? 'Victoire des Loups-Garous !' : 'Victoire du village !';
+      document.getElementById('victory-sub').textContent = wolves ? "Les loups-garous ont éliminé l'intégralité du camp des villageois" : 'Tous les Loups-Garous ont été éliminés';
+      document.getElementById('victory-overlay').style.display = 'flex';
+    }
     document.getElementById('victory-overlay').addEventListener('click', hideVictory);
 
     // --- CANDIDATS AU POSTE DE MAIRE : liste + candidat qui parle ---
-    function showCandidates(names, speaker) {
+    function showCandidates(names, speaker, sub) {
       const ov = document.getElementById('candidates-overlay');
       const list = document.getElementById('cand-list');
       list.innerHTML = '';
@@ -773,7 +779,7 @@
         d.textContent = (n === speaker ? '🎤 ' : '') + n;
         list.appendChild(d);
       });
-      document.getElementById('cand-sub').textContent = speaker ? 'Discours de ' + speaker : '';
+      document.getElementById('cand-sub').textContent = sub || (speaker ? 'Discours de ' + speaker : '');
       ov.style.display = 'flex';
     }
     function hideCandidates() { document.getElementById('candidates-overlay').style.display = 'none'; }
@@ -810,12 +816,32 @@
       eventVideo.removeAttribute('src');
       eventVideo.load();
       hideDeaths();
+      stopSfx(false);                                  // l'effet sonore s'arrête avec la scène d'annonce
       if (ytReady) ytPlayer.setVolume(targetVolume);   // on rend le son à la scène
       if (window.opener) window.opener.postMessage({ action: 'eventEnded' }, '*');   // la régie peut enchaîner (ex. lever du jour)
     }
 
+    // effets sonores par-dessus la vidéo d'annonce (Effet sorcière avant la fin ; hurlement à la révélation de la carte)
+    let sfxAudio = null, sfxTimer = null;
+    function startSfx(url) {
+      stopSfx(true);
+      sfxAudio = new Audio(url);
+      sfxAudio.volume = 0.8;
+      sfxAudio.play().catch((e) => console.warn('Effet sonore :', e));
+    }
+    function stopSfx(now) {
+      clearTimeout(sfxTimer);
+      const a = sfxAudio;
+      sfxAudio = null;
+      if (!a) return;
+      if (now) { a.pause(); return; }
+      let i = 0;
+      (function fade() { i++; a.volume = Math.max(0, a.volume * 0.7); if (i < 6) setTimeout(fade, 60); else a.pause(); })();
+    }
+
     function playEvent(data) {
       endEvent();
+      const sfx = data.sfx || {};
       hideOverlay();
       eventActive = true;
       if (data.stopScene) {
@@ -826,7 +852,16 @@
         ytPlayer.setVolume(Math.min(targetVolume, 10));   // la scène passe au second plan
       }
 
-      const showNames = () => showDeaths(data.deaths, { overVideo: true, autoHide: false, cause: data.cause });
+      const showNames = () => {
+        showDeaths(data.deaths, { overVideo: true, autoHide: false, cause: data.cause });
+        if (sfx.reveal) { clearTimeout(sfxTimer); sfxTimer = setTimeout(() => startSfx(sfx.reveal.url), 1100); }   // au retournement de la carte
+      };
+      let beforeDone = false;
+      eventVideo.ontimeupdate = () => {
+        if (!sfx.before || beforeDone) return;
+        const d = eventVideo.duration;
+        if (isFinite(d) && eventVideo.currentTime >= Math.max(0, d - sfx.before.secs)) { beforeDone = true; startSfx(sfx.before.url); }
+      };
       const noNames = data.namesAt === 'none' || !(data.deaths && data.deaths.length);
       eventVideo.onended = () => {
         if (data.namesAt === 'end') showNames();
@@ -897,7 +932,7 @@
           break;
 
         case 'victory':
-          showVictory();
+          showVictory(data.winner);
           break;
 
         case 'victoryCancel':
@@ -905,7 +940,7 @@
           break;
 
         case 'mayorCandidates':
-          if (data.hide) hideCandidates(); else showCandidates(data.names, data.speaker);
+          if (data.hide) hideCandidates(); else showCandidates(data.names, data.speaker, data.sub);
           break;
 
         case 'announceMayor':
