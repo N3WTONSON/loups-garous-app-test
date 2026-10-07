@@ -335,7 +335,8 @@
       flex-direction: column; align-items: center; justify-content: center; gap: 4vh;
       background: radial-gradient(circle at center, rgba(40, 26, 4, 0.55) 0%, rgba(0, 0, 0, 0.88) 100%);
     }
-    .dv-icon { font-size: 18vh; filter: drop-shadow(0 0 3vh rgba(252, 211, 77, 0.6)); }
+    .dv-title-img { max-height: 34vh; max-width: 80vw; object-fit: contain; filter: drop-shadow(0 0 3vh rgba(252, 211, 77, 0.45)); }
+    .dv-title-img.missing { display: none; }
     .dv-title { font-family: 'Wolf Brothers', sans-serif; font-size: 11vh; color: #fcd34d; text-shadow: 0 0.5vh 1.2vh #000; letter-spacing: 0.4vh; text-align: center; }
     .dv-sub { font-size: 5vh; color: #f4dcdc; text-shadow: 0 0.3vh 0.8vh #000; text-align: center; }
     #candidates-overlay {
@@ -484,7 +485,7 @@
     <div id="hw-sub" class="hw-sub">🏹 Il choisit sa cible pour son dernier tir…</div>
   </div>
   <div id="dayvote-overlay">
-    <div class="dv-icon">☀️</div>
+    <img id="dv-title-img" class="dv-title-img" alt="Les Loups-garous de Thiercelieux">
     <div class="dv-title">Le village débat</div>
     <div class="dv-sub">🗳️ En attente du vote du village…</div>
   </div>
@@ -504,7 +505,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 55');
+    console.info('Projecteur - version 57');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -836,6 +837,8 @@
     }
     function hideDayVote() { document.getElementById('dayvote-overlay').style.display = 'none'; }
     function showDayVote() {
+      const ti = document.getElementById('dv-title-img');
+      if (!ti.getAttribute('src')) { ti.onerror = () => ti.classList.add('missing'); ti.src = IMG_BASE + 'images/Titre.png?v=2'; }
       if (ytReady) ytPlayer.stopVideo();
       document.getElementById('player').style.visibility = 'hidden';
       hideWaitingScreen();

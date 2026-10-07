@@ -1,4 +1,4 @@
-const VERSION_APP = "55";
+const VERSION_APP = "57";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -42,6 +42,7 @@ const ASSETS = {
     "Le hurlement du loup 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Le%20hurlement%20du%20loup%201.mp3",
     "Le hurlement du loup 2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Le%20hurlement%20du%20loup%202.mp3",
     "Le hurlement du loup 3.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Le%20hurlement%20du%20loup%203.mp3",
+    "Applaudissements.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Applaudissements.mp3",
     "Effet sorciere.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Effet%20sorciere.mp3",
     "Maire.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Maire.mp3",
     "Sorciere.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere.mp3",
@@ -142,7 +143,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=55', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=57', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -161,6 +162,7 @@ window.addEventListener('message', (event) => {
     else {
       victoryPending = false;
       if (dayQueue) nextDayStep();
+      else if (successionPending && gateSuccession(() => { if (hunterWaiting()) startHunterSequence(false); })) { /* passation du Maire d'abord */ }
       else if (hunterWaiting()) startHunterSequence(false);   // mort pendant la journée (vote) : le Chasseur tire ensuite
     }
   } else if (data.action === 'overlayEnded') {
@@ -817,6 +819,7 @@ let nightDeaths = 0;   // morts de la nuit (loups, poison, Chasseur, chagrin) : 
 let dayQueue = null;   // annonces restantes avant le lever du jour (null = aucune annonce en cours)
 
 function startDayScene() {
+  if (successionPending && gateSuccession(startDayScene)) return;
   dayQueue = null;
   hunterState = null;
   hunterThenDay = false;
@@ -841,6 +844,8 @@ function nextDayStep() {
     const kind = dayQueue.shift();
     if (pendingNames(kind).length && announceKillEvent(kind, { auto: true })) return;   // on attend « eventEnded »
   }
+  // la passation du Maire (s'il est mort) passe avant le Chasseur et le débat
+  if (successionPending && gateSuccession(nextDayStep)) return;
   // plus d'annonce : si le Chasseur est mort, il tire juste avant le lever du jour
   if (hunterWaiting() && projectorOpen() && startHunterSequence(true)) return;
   startDayScene();
@@ -1259,6 +1264,7 @@ function resetGameAutomation() {
   if (rps) { clearTimeout(rps.timer); rps = null; }
   waitMusicWanted = false;
   successionPending = null;
+  afterSuccession = null;
   mayorVote = newMayorVote(false);
   dayQueue = null;
   seerWaiting = new Set();
@@ -2206,15 +2212,30 @@ function startMayorSuccession(dead) {
   if (!alivePlayers().length) return;
   successionPending = dead.name;
   sendSuccessionTurn(dead);
-  sendToProjector({ action: 'hunterWaiting', name: dead.name, role: dead.role, sub: '👑 Le Maire est mort : il doit transmettre son rôle de Maire à un joueur encore en vie' });
   showToast(`👑 Le Maire ${dead.name} est mort : il choisit son successeur depuis son téléphone.`, 'info');
+}
+
+// Passation du Maire : l'écran secondaire l'affiche et la suite (Chasseur, débat du village) attend qu'il ait désigné son successeur
+let afterSuccession = null;
+function gateSuccession(next) {
+  const dead = successionPending ? findPlayer(successionPending) : null;
+  if (!dead || !dead.connected || !projectorOpen()) return false;   // injoignable : on ne bloque pas la partie
+  afterSuccession = next;
+  sendToProjector({ action: 'hunterWaiting', name: dead.name, role: dead.role, sub: '👑 Le Maire est mort : il doit transmettre son rôle de Maire à un joueur encore en vie' });
+  return true;
+}
+function releaseSuccession() {
+  sendToProjector({ action: 'hunterWaiting', hide: true });
+  const next = afterSuccession;
+  afterSuccession = null;
+  if (next) setTimeout(next, 6500);   // laisse l'annonce du nouveau Maire se terminer
 }
 
 function cancelMayorSuccession() {
   const p = successionPending ? findPlayer(successionPending) : null;
   successionPending = null;
-  sendToProjector({ action: 'hunterWaiting', hide: true });
   if (p) sendTo(p, { type: 'mayorSuccessionDone' });
+  releaseSuccession();
 }
 
 function handleMayorSuccessor(conn, data) {
@@ -2226,10 +2247,21 @@ function handleMayorSuccessor(conn, data) {
   mayor = t.name;
   selection.mayor = new Set();
   sendTo(dead, { type: 'mayorSuccessionDone' });
-  sendToProjector({ action: 'hunterWaiting', hide: true });
   const shown = sendToProjector({ action: 'announceMayor', name: t.name });
+  if (shown) playApplause();
+  releaseSuccession();
   showToast(`👑 ${dead.name} désigne ${t.name} comme nouveau Maire${shown ? '' : ' (écran secondaire fermé)'}.`, 'info');
   renderMJDashboard();
+}
+
+// Applaudissements lus à l'annonce du Maire (son indépendant des voix du MJ)
+function playApplause() {
+  try {
+    const a = new Audio(mediaUrl('audio', 'Applaudissements.mp3'));
+    a.addEventListener('error', () => showToast('🔊 Applaudissements.mp3 introuvable sur Supabase (assets/mj/audio).', 'info'));
+    fadeInAudio(a, FADE_IN_MS, MAX_VOLUME);
+    a.play().catch(() => {});
+  } catch (e) { /* ignoré */ }
 }
 
 // Proclame le Maire : couronne + nom sur l'écran secondaire
@@ -2240,6 +2272,7 @@ function announceMayor() {
   selection.mayor = new Set();
   if (successionPending) cancelMayorSuccession();   // un Maire est désigné : plus de succession en attente
   const shown = sendToProjector({ action: 'announceMayor', name });
+  if (shown) playApplause();
   showToast(shown ? `👑 ${name} est élu Maire du village !` : `👑 ${name} est élu Maire (écran secondaire fermé : rien n'est affiché).`, 'info');
   renderMJDashboard();
 }
