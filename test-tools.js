@@ -182,10 +182,9 @@
   window.testFillRoles = function () {
     const n = players.length;
     if (!n) { showToast("Ajoutez d'abord des joueurs (ils doivent être connectés).", 'info'); return; }
-    // plus de Villageois que de Loups-Garous : on garde au moins (loups + 1) villageois
-    const wolves = Math.max(1, Math.round(n / 4));
-    const maxSpecials = Math.max(0, n - wolves - (wolves + 1));
-    const specials = ['Voyante', 'Sorcière', 'Cupidon', 'Chasseur', 'Voleur', 'Renard', 'Petite Fille'].slice(0, maxSpecials);
+    // tous les non-loups comptent comme villageois : loups < n/2, rôles spéciaux d'abord, villageois pour compléter
+    const wolves = Math.max(1, Math.min(Math.round(n / 4), Math.ceil(n / 2) - 1));
+    const specials = ['Voyante', 'Sorcière', 'Cupidon', 'Chasseur', 'Voleur', 'Renard', 'Petite Fille'].slice(0, Math.max(0, n - wolves));
     const villagers = Math.max(0, n - wolves - specials.length);
     roles.length = 0;
     for (let i = 0; i < wolves; i++) roles.push('Loup-Garou');

@@ -1,4 +1,4 @@
-const VERSION_APP = "41";
+const VERSION_APP = "43";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -133,7 +133,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=41', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=43', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -289,6 +289,20 @@ function addRole(roleName) {
   updateMJRoleList();
 }
 
+// Remplit les rôles selon le nombre de joueurs : loups < moitié, rôles spéciaux d'abord, villageois pour compléter
+function autoFillRoles(thenDistribute) {
+  const n = players.length;
+  if (n < 3) { showToast('Il faut au moins 3 joueurs connectés.', 'info'); return; }
+  const wolves = Math.max(1, Math.min(Math.round(n / 4), Math.ceil(n / 2) - 1));
+  const specials = ['Voyante', 'Sorcière', 'Cupidon', 'Chasseur', 'Voleur', 'Renard', 'Petite Fille'].slice(0, Math.max(0, n - wolves));
+  roles.length = 0;
+  for (let i = 0; i < wolves; i++) roles.push('Loup-Garou');
+  specials.forEach((r) => roles.push(r));
+  while (roles.length < n) roles.push('Villageois');
+  updateMJRoleList();
+  if (thenDistribute) distributeRolesNetwork();
+}
+
 function removeRole(index) {
   roles.splice(index, 1);
   updateMJRoleList();
@@ -317,20 +331,23 @@ function updateMJRoleList() {
   // ratio : plus de Villageois que de Loups-Garous
   const ratio = document.getElementById('role-ratio');
   if (ratio) {
-    const v = roles.filter((r) => r === 'Villageois').length;
+    // tout rôle autre que Loup-Garou compte comme villageois pour le ratio
     const w = roles.filter((r) => r === 'Loup-Garou').length;
+    const v = roles.length - w;
+    const simple = roles.filter((r) => r === 'Villageois').length;
+    const spec = v - simple;
     const ok = w >= 1 && v > w;
     ratio.className = 'hint role-ratio ' + (TEST_MODE ? 'ok' : (ok ? 'ok' : (roles.length ? 'bad' : '')));
     const distBtn = document.getElementById('distribute-btn');
     if (distBtn) {
       distBtn.disabled = !TEST_MODE && roles.length > 0 && !ok;
-      distBtn.title = distBtn.disabled ? 'Il faut plus de Villageois que de Loups-Garous (et au moins 1 Loup-Garou).' : '';
+      distBtn.title = distBtn.disabled ? 'Il faut au moins 1 Loup-Garou et plus de villageois (rôles spéciaux inclus) que de Loups-Garous.' : '';
     }
     ratio.textContent = TEST_MODE
-      ? `🧪 Mode test : rôles uniques et ratio non contrôlés — Villageois : ${v} · Loups-Garous : ${w}`
+      ? `🧪 Mode test : rôles uniques et ratio non contrôlés — Villageois (rôles spéciaux inclus) : ${v} · Loups-Garous : ${w}`
       : roles.length
-      ? `Villageois : ${v} · Loups-Garous : ${w} — ${ok ? '✅ ratio valide' : '⚠️ il faut au moins 1 Loup-Garou et plus de Villageois que de Loups-Garous'}`
-      : "Rôle unique : Voyante, Sorcière, Chasseur, Cupidon, Voleur, Renard, Petite Fille. Ratio : plus de Villageois que de Loups-Garous.";
+      ? `Villageois : ${v} (dont ${spec} rôle(s) spécial(aux)) · Loups-Garous : ${w} — ${ok ? '✅ ratio valide' : '⚠️ il faut au moins 1 Loup-Garou et plus de villageois (rôles spéciaux inclus) que de Loups-Garous'}`
+      : "Rôle unique : Voyante, Sorcière, Chasseur, Cupidon, Voleur, Renard, Petite Fille. Ratio : tous les rôles autres que Loup-Garou comptent comme villageois et doivent être plus nombreux que les Loups-Garous.";
   }
 }
 
@@ -346,13 +363,13 @@ function distributeRolesNetwork() {
       return;
     }
     const nbWolves = roles.filter((r) => r === 'Loup-Garou').length;
-    const nbVillagers = roles.filter((r) => r === 'Villageois').length;
+    const nbVillagers = roles.length - nbWolves; // rôles spéciaux = villageois
     if (nbWolves < 1) {
       alert("Ajoutez au moins un Loup-Garou.");
       return;
     }
     if (nbVillagers <= nbWolves) {
-      alert(`Il faut plus de Villageois que de Loups-Garous (actuellement ${nbVillagers} Villageois pour ${nbWolves} Loup(s)-Garou(s)).`);
+      alert(`Il faut plus de villageois (rôles spéciaux inclus) que de Loups-Garous (actuellement ${nbVillagers} pour ${nbWolves} Loup(s)-Garou(s)).`);
       return;
     }
   }

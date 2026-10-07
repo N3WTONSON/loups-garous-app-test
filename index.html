@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>Loup-Garou - Régie Maître du Jeu</title>
-  <link rel="stylesheet" href="style.css?v=41">
+  <link rel="stylesheet" href="style.css?v=43">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -114,6 +114,10 @@
             </div>
           </div>
 
+          <div class="button-grid" style="margin-bottom: 10px;">
+            <button class="btn btn-day" onclick="autoFillRoles(false)">🎲 Remplir les rôles automatiquement</button>
+            <button class="btn btn-day" onclick="autoFillRoles(true)">⚡ Remplir et distribuer</button>
+          </div>
           <button class="btn btn-night btn-large" id="distribute-btn" onclick="distributeRolesNetwork()">🔀 Distribuer les Rôles aux Joueurs</button>
         </section>
 
@@ -238,7 +242,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 41</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 43</p>
 
   <script>
     (function () {
@@ -269,6 +273,6 @@
       });
     })();
   </script>
-  <script src="script.js?v=41"></script>
+  <script src="script.js?v=43"></script>
 </body>
 </html>
