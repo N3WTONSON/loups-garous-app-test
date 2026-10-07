@@ -1,4 +1,4 @@
-const VERSION_APP = "47";
+const VERSION_APP = "48";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -140,7 +140,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=47', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=48', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -500,6 +500,7 @@ function renderMJDashboard() {
   tbody.innerHTML = html;
   document.getElementById('mj-dashboard').style.display = 'block';
   renderAutomation();
+  renderMayorControls();
 }
 
 // Amoureux : cochés automatiquement par Cupidon (téléphone), corrigeables à la main
@@ -1883,6 +1884,49 @@ function nextMayorSpeaker() {
 }
 
 // Fin des discours : le vote s'ouvre sur les téléphones, avec les seuls candidats
+// Fin du discours en cours (plus personne ne parle)
+function endMayorSpeech() {
+  if (!mayorVote.open || mayorVote.phase !== 'speech') return;
+  mayorVote.speaker = null;
+  pushCandidatesToProjector();
+  alivePlayers().forEach(sendMayorTurn);
+  renderMJDashboard();
+}
+
+// Boutons de la régie pour l'élection (carte « 👑 Élection du Maire », visible uniquement pendant l'élection)
+function renderMayorControls() {
+  const card = document.getElementById('mayor-controls');
+  if (!card) return;
+  if (!mayorVote.open) { card.style.display = 'none'; return; }
+  card.style.display = '';
+  const info = document.getElementById('mayor-controls-info');
+  const box = document.getElementById('mayor-controls-buttons');
+  const alive = alivePlayers().length;
+  const btn = (cls, label, js, extra = '') => `<button type="button" class="btn ${cls}" ${extra} onclick="${js}">${label}</button>`;
+  const cancel = btn('btn-danger', '✖ Annuler l\'élection', 'closeMayorVote(false)');
+  let html = '';
+  if (mayorVote.phase === 'candidacy') {
+    const c = mayorCandidatesNow();
+    info.innerHTML = `🙋 Candidatures ouvertes — ${mayorVote.answers.size}/${alive} ont répondu. Candidats : ${c.length ? c.map(nameHtml).join(', ') : 'aucun pour l\'instant'}.`;
+    html = btn('btn-day', '✅ Clore les candidatures', 'closeCandidacy()') + cancel;
+  } else if (mayorVote.phase === 'speech') {
+    info.innerHTML = mayorVote.speaker
+      ? `🎤 <strong>${nameHtml(mayorVote.speaker)}</strong> a la parole. Quand il a fini, donnez la parole au suivant.`
+      : '🙋 Les candidats attendent que vous leur donniez la parole.';
+    html = mayorVote.candidates.map((n) => {
+      const mark = mayorVote.speaker === n ? '🎤 ' : (mayorVote.spoke.has(n) ? '✔ ' : '');
+      return btn(mayorVote.speaker === n ? 'btn-day' : 'btn-night', `${mark}Donner la parole à ${escapeHtml(n)}`, 'setMayorSpeaker(this.dataset.name)', `data-name="${escapeHtml(n)}"`);
+    }).join('')
+      + btn('btn-effect', '⏭ Candidat suivant', 'nextMayorSpeaker()')
+      + (mayorVote.speaker ? btn('btn-effect', '🤐 Fin du discours', 'endMayorSpeech()') : '')
+      + btn('btn-day', '🗳️ Passer au vote', 'startMayorBallot()') + cancel;
+  } else {
+    info.innerHTML = `🗳️ Vote ouvert — ${mayorVote.votes.size}/${alive} ont voté. ${countsText(aliveTally(mayorVote.votes)) || ''}`;
+    html = btn('btn-vert', '🏁 Clore le vote et proclamer le Maire', 'resolveMayorVote()') + cancel;
+  }
+  box.innerHTML = html;
+}
+
 function startMayorBallot() {
   if (!mayorVote.open || mayorVote.phase !== 'speech') return;
   mayorVote.phase = 'vote';
