@@ -1,4 +1,4 @@
-const VERSION_APP = "54";
+const VERSION_APP = "55";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -142,7 +142,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=54', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=55', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -620,6 +620,7 @@ function playScene(videoId, loop = true) {
   dayPause = false;
   waitMusicWanted = false;
   stopWaitMusic();
+  stopDayMusic();
   if (!sendToProjector({ action: 'playYTVideo', videoId, loop })) {
     alert("Veuillez d'abord cliquer sur 'Ouvrir l'Écran Secondaire' !");
   } else {
@@ -638,6 +639,7 @@ function playScene(videoId, loop = true) {
 const MUSIC_LOBBY = "Feast Circle 1.mp3";
 const MUSIC_WAIT_TRACKS = ["Dusk in the Tavern 1.mp3", "Dusk in the Tavern 2.mp3", "Tavern at Dusk 1.mp3", "Tavern at Dusk 2.mp3"];
 const MUSIC_WAIT_VOLUME = 0.5;
+const MUSIC_DAY_VOLUME = 0.3;   // débat du village (jour) : « Feast Circle 1 » à 30 %
 const MUSIC_DUCK_VOLUME = 0.12;
 const MUSIC_SPEECH_VOLUME = 0.06;  // niveau pendant les discours des candidats (musique très discrète)
 let musicQuiet = false;   // niveau pendant que le MJ parle (voix enregistrées)
@@ -653,7 +655,7 @@ let mayorMusicTimer = null;
 let waitMusicWanted = false;   // la musique d'attente est autorisée entre l'appel du Maire et le début de la nuit
 
 function musicLevel() {
-  const base = musicMode === 'lobby' ? MAX_VOLUME : MUSIC_WAIT_VOLUME;
+  const base = musicMode === 'lobby' ? MAX_VOLUME : (musicMode === 'day' ? MUSIC_DAY_VOLUME : MUSIC_WAIT_VOLUME);
   let v = base;
   if (musicQuiet && musicMode === 'wait') v = Math.min(v, MUSIC_SPEECH_VOLUME);
   if (musicDuck) v = Math.min(v, MUSIC_DUCK_VOLUME);
@@ -737,6 +739,15 @@ function startLobbyMusic() {
   launchMusic(MUSIC_LOBBY, true, null);
 }
 
+function startDayMusic() {
+  if (musicMode === 'day') return;
+  stopMusic(300);
+  musicMode = 'day';
+  launchMusic(MUSIC_LOBBY, true, null);
+}
+
+function stopDayMusic() { if (musicMode === 'day') stopMusic(); }
+
 function stopLobbyMusic() { if (musicMode === 'lobby') stopMusic(); }
 
 function pickWaitTrack() {
@@ -809,7 +820,17 @@ function startDayScene() {
   dayQueue = null;
   hunterState = null;
   hunterThenDay = false;
-  playScene(YT_ID_JOUR);
+  // le jour se lève : plus de vidéo YouTube, écran « le village débat » + musique Feast Circle 1 à 30 %
+  dayPause = false;
+  waitMusicWanted = false;
+  stopWaitMusic();
+  if (!sendToProjector({ action: 'dayVote', show: true })) {
+    alert("Veuillez d'abord cliquer sur 'Ouvrir l'Écran Secondaire' !");
+  } else {
+    overlayMode = null;
+    currentOverlayFile = null;
+  }
+  startDayMusic();
   openVillageVote();
   playAudioFile(["0 mort.mp3", "1 mort.mp3", "2 morts.mp3", "3 morts.mp3"][Math.min(nightDeaths, 3)]);
 }
@@ -2317,6 +2338,7 @@ function announceKillEvent(kind, opts = {}) {
   sendToProjector({ action: 'hunterWaiting', hide: true });
   waitMusicWanted = false;
   stopWaitMusic();
+  stopDayMusic();
   // on coupe la voix du MJ et les incrustations pendant la vidéo d'annonce
   if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
   window.speechSynthesis.cancel();
