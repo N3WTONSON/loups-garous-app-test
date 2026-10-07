@@ -1,4 +1,4 @@
-const VERSION_APP = "66";
+const VERSION_APP = "67";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=66', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=67', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -166,8 +166,11 @@ window.addEventListener('message', (event) => {
     else {
       victoryPending = false;
       if (dayQueue) nextDayStep();
-      else if (successionPending && gateSuccession(() => { if (hunterWaiting()) startHunterSequence(false); else resumePauseMusic(); })) { /* passation du Maire d'abord */ }
-      else if (hunterWaiting()) startHunterSequence(false);   // mort pendant la journée (vote) : le Chasseur tire ensuite
+      else {
+        // mort pendant la journée (vote) : passation du Maire d'abord, puis le Chasseur tire, puis « en attente de la nuit »
+        const cont = () => { if (hunterWaiting()) startHunterSequence(false); else resumePauseMusic(); };
+        if (!(successionPending && gateSuccession(cont))) cont();
+      }
     }
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
@@ -1875,7 +1878,10 @@ function finishHunter() {
   resumePauseMusic();
   if (victoryPending && currentWinner()) { dayQueue = null; showVictory(); return; }
   victoryPending = false;
-  if (thenDay && dayQueue) nextDayStep();     // le jour se lève après le tir
+  if (thenDay && dayQueue) { nextDayStep(); return; }     // le jour se lève après le tir (la passation du Maire passe avant)
+  // tir de jour : si le Chasseur a tué le Maire, la passation est annoncée avant « en attente de la nuit »
+  if (successionPending && gateSuccession(resumePauseMusic)) return;
+  resumePauseMusic();
 }
 
 // Le MJ ressuscite le Chasseur : son tir est annulé
