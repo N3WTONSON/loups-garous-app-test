@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Loup-Garou - Espace Joueur</title>
-  <link rel="stylesheet" href="style.css?v=48">
+  <link rel="stylesheet" href="style.css?v=49">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -42,7 +42,6 @@
         <p>Choisis l'un de ces deux rôles. Tu l'obtiens à la place de ta carte, et le joueur qui le possède devient simple Villageois.</p>
         <div id="thief-cards" class="thief-cards"></div>
         <button class="btn btn-night" id="thief-confirm" onclick="thiefConfirm()" disabled>🕵️ Voler ce rôle</button>
-        <button class="btn btn-effect" id="thief-skip" onclick="thiefSkip()">Garder mon rôle</button>
       </div>
 
 
@@ -102,7 +101,7 @@
         <div id="fox-result" style="display: none;">
           <p id="fox-result-target"></p>
           <div id="fox-answer" class="fox-answer"></div>
-          <button class="btn btn-effect" onclick="foxClose()">J'ai vu, fermer</button>
+          <p class="hint">Cette fenêtre se refermera toute seule à la fin de la réponse.</p>
         </div>
       </div>
 
@@ -175,7 +174,7 @@
       </div>
     </section>
   </main>
-  <p class="hint" style="text-align:center;">Version 48</p>
+  <p class="hint" style="text-align:center;">Version 49</p>
 
   <script>
     (function () {
@@ -204,7 +203,7 @@
       });
     })();
   </script>
-  <script src="sim-peer.js?v=48"></script>
-  <script src="player.js?v=48"></script>
+  <script src="sim-peer.js?v=49"></script>
+  <script src="player.js?v=49"></script>
 </body>
 </html>

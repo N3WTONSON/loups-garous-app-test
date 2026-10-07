@@ -1,5 +1,6 @@
-const VERSION_APP = "48";
+const VERSION_APP = "49";
 console.info("Loup-Garou régie - version " + VERSION_APP);
+let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
 const TEST_MODE = !!window.LG_TEST_MODE;
@@ -140,7 +141,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=48', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=49', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -153,6 +154,7 @@ window.addEventListener('message', (event) => {
     syncLobbyToProjector();
   } else if (data.action === 'eventEnded') {
     // l'annonce de mort vient de se terminer : victoire éventuelle d'abord, sinon l'annonce suivante, puis le lever du jour
+    if (pendingHowl) { pendingHowl = false; playAudioFile("Le hurlement du loup 1.mp3"); }
     if (hunterState) { onHunterEventEnded(); return; }
     if (victoryPending && allWolvesDead()) { dayQueue = null; showVictory(); }
     else {
@@ -162,7 +164,7 @@ window.addEventListener('message', (event) => {
     }
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
-    if (mayorVote.open && mayorVote.phase !== 'speech' && data.url === mediaUrl('video', 'Maire.mp4')) startWaitMusic();
+    if (String(data.url || '').includes('Maire.mp4') && waitMusicWanted && !(mayorVote.open && mayorVote.phase === 'speech')) startWaitMusic();
     if (currentOverlayFile && mediaUrl('video', currentOverlayFile) === data.url) {
       overlayMode = null;
       currentOverlayFile = null;
@@ -414,6 +416,12 @@ function distributeRolesNetwork() {
 }
 
 function updateCallButtons() {
+  const mayorBtn = document.getElementById('mayor-call-btn');
+  if (mayorBtn) {
+    const used = mayorCalled && !TEST_MODE;
+    mayorBtn.disabled = used;
+    mayorBtn.classList.toggle('used', used);
+  }
   const grid = document.getElementById('calls-grid');
   const hint = document.getElementById('calls-hint');
   if (!grid || !hint) return;
@@ -558,21 +566,24 @@ function announceDeaths(deaths) {
 }
 
 // --- MÉDIAS ---
+const DAY_SCENE_FACTOR = 25 / 80;   // 25 % du volume YouTube (le plafond de l'écran secondaire est 80)
+let sceneBase = 1;
 function setProjectorVideoVolume(vol, duration = 600) {
-  sendToProjector({ action: 'setVolume', volume: vol, duration });
+  sendToProjector({ action: 'setVolume', volume: vol * sceneBase, duration });
 }
 
 // ---- Limite du niveau audio : aucun son ne dépasse MAX_VOLUME, et chaque son démarre en fondu (jamais « d'un seul coup ») ----
 const MAX_VOLUME = 0.8;          // plafond du volume (1 = maximum) pour tous les sons de la régie
-const FADE_IN_MS = 500;          // durée du fondu d'entrée
+const FADE_IN_MS = 500;
+const LOUD_AUDIO = { "Fermer les yeux.mp3": 1.0 };   // sons un peu plus forts que le plafond habituel          // durée du fondu d'entrée
 
-function fadeInAudio(audio, ms = FADE_IN_MS) {
+function fadeInAudio(audio, ms = FADE_IN_MS, max = MAX_VOLUME) {
   const steps = 10;
   let i = 0;
   audio.volume = 0;
   const tick = () => {
     i++;
-    audio.volume = Math.min(MAX_VOLUME, MAX_VOLUME * i / steps);
+    audio.volume = Math.min(max, max * i / steps);
     if (i < steps && !audio.ended) setTimeout(tick, ms / steps);
   };
   setTimeout(tick, ms / steps);
@@ -580,6 +591,7 @@ function fadeInAudio(audio, ms = FADE_IN_MS) {
 
 // loop = false : la vidéo est lue une seule fois, puis disparaît (ex. vidéo du Maire)
 function playRoleVideo(fileName, mode = 'center', loop = true) {
+  if (fileName !== 'Maire.mp4') { waitMusicWanted = false; stopWaitMusic(); }
   overlayMode = mode;
   currentOverlayFile = fileName;
   sendToProjector({ action: 'playOverlayVideo', url: mediaUrl('video', fileName), mode, loop });
@@ -596,11 +608,16 @@ function isCenteredVideo(fileName) {
 }
 
 function playScene(videoId, loop = true) {
+  waitMusicWanted = false;
+  stopWaitMusic();
   if (!sendToProjector({ action: 'playYTVideo', videoId, loop })) {
     alert("Veuillez d'abord cliquer sur 'Ouvrir l'Écran Secondaire' !");
   } else {
     overlayMode = null;
     currentOverlayFile = null;
+    // scène de jour : volume à 25 % (YouTube 0-100) ; les autres scènes au niveau normal
+    sceneBase = videoId === YT_ID_JOUR ? DAY_SCENE_FACTOR : 1;
+    setProjectorVideoVolume(1.0, 300);
   }
 }
 
@@ -621,6 +638,7 @@ let musicLastTrack = null;
 let musicToken = 0;
 let musicRetryBound = false;
 let mayorMusicTimer = null;
+let waitMusicWanted = false;   // la musique d'attente est autorisée entre l'appel du Maire et le début de la nuit
 
 function musicLevel() {
   const base = musicMode === 'lobby' ? MAX_VOLUME : MUSIC_WAIT_VOLUME;
@@ -721,7 +739,7 @@ function playNextWaitTrack(failed) {
 let musicFailCount = 0;
 
 function startWaitMusic() {
-  if (musicMode === 'wait') return;
+  if (musicMode === 'wait' || !waitMusicWanted) return;
   stopMusic(500);
   musicMode = 'wait';
   musicFailCount = 0;
@@ -750,6 +768,7 @@ function presentCharacters() {
 
 function playNightPhase() {
   stopLobbyMusic();
+  nightDeaths = 0;
   currentTurnRole = null;
   closeVillageVote(true);
   playScene(YT_ID_NUIT);
@@ -761,6 +780,8 @@ function pendingNames(kind) {
   return [...selection[kind]].filter((n) => { const p = findPlayer(n); return p && p.alive; });
 }
 
+let pendingHowl = false;   // un Loup-Garou vient d'être éliminé par le village : hurlement à la fin de la vidéo
+let nightDeaths = 0;   // morts de la nuit (loups, poison, Chasseur, chagrin) : choisit l'audio du lever du jour
 let dayQueue = null;   // annonces restantes avant le lever du jour (null = aucune annonce en cours)
 
 function startDayScene() {
@@ -769,7 +790,7 @@ function startDayScene() {
   hunterThenDay = false;
   playScene(YT_ID_JOUR);
   openVillageVote();
-  playAudioFile("Appel jour V2.mp3");
+  playAudioFile(["0 mort.mp3", "1 mort.mp3", "2 morts.mp3", "3 morts.mp3"][Math.min(nightDeaths, 3)]);
 }
 
 // Enchaîne les annonces de mort une par une ; la scène de jour démarre quand la dernière est terminée
@@ -806,9 +827,13 @@ function playCommand(cmd) {
     playAudioFile("Fermer les yeux.mp3");
   } else if (cmd === 'voter_maire') {
     // Vidéo du Maire en plein écran (sans recadrage), sans diffuser l'audio Maire.mp3
+    if (mayorCalled && !TEST_MODE) { showToast('👑 Le Maire a déjà été appelé : le bouton est bloqué.', 'info'); return; }
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
     stopLobbyMusic();
-    openMayorVote();                              // les joueurs votent depuis leur téléphone
+    mayorCalled = true;
+    updateCallButtons();
+    waitMusicWanted = true;
+    openMayorVote(true);                              // les joueurs votent depuis leur téléphone
     if (!gameStarted) {                           // premier appel du Maire : la partie commence
       gameStarted = true;
       players.forEach((p) => sendTo(p, { type: 'gameStarted', started: true }));
@@ -822,13 +847,10 @@ function playCommand(cmd) {
 function playRenardResponse(isPositive) {
   if (!isCenteredVideo("Renard.mp4")) playRoleVideo("Renard.mp4");
 
-  // le Renard joue sur son téléphone ? alors sa réponse s'affiche chez lui et « Fermez les yeux » attend qu'il referme
-  const foxes = alivePlayers().filter((p) => p.role === 'Renard');
-  const usesPhone = foxes.some((f) => f.connected && (foxWaiting.has(f.name) || (foxChoices.has(f.name) && !foxAcked.has(f.name))));
+  // la réponse s'affiche sur le téléphone du Renard ; quand l'audio de la réponse est fini, son tour est terminé
+  // (sa fenêtre se referme toute seule) puis « Fermez les yeux » est lu
   deliverFoxAnswer(isPositive);
-
-  // sinon (pas de Renard, ou hors ligne) : enchaînement classique après la voix du MJ
-  playAudioFile(isPositive ? "Appel Renard oui.mp3" : "Appel Renard non.mp3", usesPhone ? {} : { then: CLOSE_EYES_AUDIO });
+  playAudioFile(isPositive ? "Appel Renard oui.mp3" : "Appel Renard non.mp3", { then: CLOSE_EYES_AUDIO, done: finishFoxTurns });
 }
 
 function playDeaths(count) {
@@ -865,6 +887,9 @@ const FALLBACK_TEXTS = {
 };
 
 function onAudioFinished() {
+  const doneFn = audioDone;
+  audioDone = null;
+  if (doneFn) doneFn();
   if (!afterAudio) duckMusic(false);
   setProjectorVideoVolume(1.0, 800);
   if (overlayMode === 'corner') stopRoleVideo();
@@ -921,8 +946,10 @@ function diagnoseAudio(url, filename) {
     .catch(() => showToast(base + "impossible de joindre Supabase (réseau ou CORS)."));
 }
 
+let audioDone = null;
 function playAudioFile(filename, opts = {}) {
   afterAudio = opts.then || null;
+  audioDone = opts.done || null;
   window.speechSynthesis.cancel();
   if (currentAudio) {
     currentAudio.pause();
@@ -937,7 +964,7 @@ function playAudioFile(filename, opts = {}) {
     const url = mediaUrl('audio', candidates[i]);
     const audio = new Audio(url);
     currentAudio = audio;
-    fadeInAudio(audio);                       // niveau plafonné + fondu d'entrée
+    fadeInAudio(audio, FADE_IN_MS, LOUD_AUDIO[filename] || MAX_VOLUME);   // niveau plafonné + fondu d'entrée
 
     audio.addEventListener('ended', () => {
       if (currentAudio === audio) onAudioFinished();
@@ -1103,14 +1130,7 @@ function handleThiefSteal(conn, data) {
   if (!thief || thief.role !== 'Voleur' || !thiefOffers.has(thief.name)) return;
   const offers = thiefOffers.get(thief.name);
 
-  if (data.skip) {
-    thiefOffers.delete(thief.name);
-    conn.send({ type: 'thiefDone' });
-    showToast(`🕵️ ${thief.name} (Voleur) garde son rôle.`, 'info');
-    renderMJDashboard();
-    scheduleCloseEyes();
-    return;
-  }
+  if (data.skip) { sendThiefTurn(thief); return; }   // le Voleur est obligé de voler une carte
 
   const offer = offers[Number(data.choice)];
   const holder = offer && players.find((p) => p !== thief && p.name === offer.holder);
@@ -1186,6 +1206,8 @@ function resetGameAutomation() {
   hunterDone = false;
   gameStarted = false;
   mayor = null;
+  mayorCalled = false;
+  waitMusicWanted = false;
   successionPending = null;
   mayorVote = newMayorVote(false);
   dayQueue = null;
@@ -1226,6 +1248,7 @@ function showVictory() {
   gameOver = true;
   closeVillageVote(true);
   closeMayorVote(true);
+  stopMusic();
   const shown = sendToProjector({ action: 'victory', winner: 'village' });
   players.forEach((p) => sendTo(p, { type: 'gameOver', winner: 'village' }));
   showToast(`🏆 Tous les Loups-Garous sont morts : victoire du village !${shown ? '' : ' (écran secondaire fermé)'}`, 'info');
@@ -1682,7 +1705,7 @@ function handleFoxChoice(conn, data) {
   foxChoices.set(f.name, t.name);
   sendTo(f, { type: 'foxAck', target: t.name });
   showToast(`🦊 Le Renard (${f.name}) a désigné ${t.name} : répondez Oui ou Non avec les boutons du Renard.`, 'info');
-  if (foxQueuedAnswer !== null) deliverFoxAnswer(foxQueuedAnswer);   // le MJ avait déjà répondu
+  if (foxQueuedAnswer !== null) { deliverFoxAnswer(foxQueuedAnswer); setTimeout(finishFoxTurns, 8000); }   // le MJ avait déjà répondu
   else openFoxModal();                                                  // sinon : la fenêtre de réponse s'ouvre
   renderMJDashboard();
 }
@@ -1734,6 +1757,17 @@ function deliverFoxAnswer(isPositive) {
 }
 
 // Le Renard a refermé la réponse : son tour est fini, « Fermez les yeux » est lu
+// Fin de la réponse audio : les Renards qui ont reçu leur réponse voient leur fenêtre se refermer
+function finishFoxTurns() {
+  alivePlayers().filter((p) => p.role === 'Renard').forEach((f) => {
+    if (foxAnswered.has(f.name) && !foxAcked.has(f.name)) {
+      foxAcked.add(f.name);
+      sendTo(f, { type: 'foxDone' });
+    }
+  });
+  renderMJDashboard();
+}
+
 function handleFoxClosed(conn) {
   const f = senderOf(conn);
   if (!f || !foxAnswered.has(f.name) || foxAcked.has(f.name)) return;
@@ -1817,7 +1851,8 @@ function sendMayorTurn(p) {
   }
 }
 
-function openMayorVote() {
+function openMayorVote(withVideo = false) {
+  waitMusicWanted = true;
   mayorVote = newMayorVote(true);
   selection.mayor = new Set();
   sendToProjector({ action: 'mayorCandidates', hide: true });
@@ -1825,7 +1860,7 @@ function openMayorVote() {
   alivePlayers().forEach(sendMayorTurn);
   // musique d'attente : après la vidéo du Maire (tout de suite si l'écran secondaire est fermé)
   clearTimeout(mayorMusicTimer);
-  if (!projectorOpen()) startWaitMusic();
+  if (!projectorOpen() || !withVideo) startWaitMusic();
   else mayorMusicTimer = setTimeout(() => { if (mayorVote.open && mayorVote.phase !== 'speech') startWaitMusic(); }, 60000);
   renderMJDashboard();
 }
@@ -1956,7 +1991,8 @@ function handleMayorVote(conn, data) {
 function closeMayorVote(silent = false) {
   if (!mayorVote.open) return;
   mayorVote.open = false;
-  stopWaitMusic();
+  if (silent) { waitMusicWanted = false; stopWaitMusic(); }
+  else if (waitMusicWanted) { if (musicMode === 'wait') setWaitMusicPaused(false); else if (overlayMode !== 'full') startWaitMusic(); }   // la musique continue pendant la pause
   sendToProjector({ action: 'mayorCandidates', hide: true });
   players.forEach((p) => sendTo(p, { type: 'mayorClose' }));
   if (villageVote.open) alivePlayers().forEach(sendVoteTurn);   // le vote du village réapparaît s'il était ouvert
@@ -2113,10 +2149,14 @@ function announceKillEvent(kind, opts = {}) {
   }
 
   const deaths = killPlayers(names);
+  if (kind !== 'vote') nightDeaths += deaths.length;
+  else if (deaths.some((d) => d.role === 'Loup-Garou')) pendingHowl = true;
   selection[kind] = new Set();
   if (kind === 'wolves') night.wolfVictim = null;
   if (kind === 'poison') night.poisoned = null;
 
+  waitMusicWanted = false;
+  stopWaitMusic();
   // on coupe la voix du MJ et les incrustations pendant la vidéo d'annonce
   if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
   window.speechSynthesis.cancel();
@@ -2244,7 +2284,7 @@ document.addEventListener('click', (e) => {
   else if (btn.dataset.act === 'closeWolves') closeWolfVote();
   else if (btn.dataset.act === 'closeVote') closeVillageVote(false);
   else if (btn.dataset.act === 'openVote') openVillageVote();
-  else if (btn.dataset.act === 'openMayor') openMayorVote();
+  else if (btn.dataset.act === 'openMayor') openMayorVote(false);
   else if (btn.dataset.act === 'closeCandidacy') closeCandidacy();
   else if (btn.dataset.act === 'mayorSpeaker') setMayorSpeaker(btn.dataset.name);
   else if (btn.dataset.act === 'mayorNextSpeaker') nextMayorSpeaker();

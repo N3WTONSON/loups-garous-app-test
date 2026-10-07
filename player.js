@@ -249,6 +249,8 @@ function connect(room, name, token, isAuto) {
         showFoxPanel(data);
       } else if (data.type === 'foxAck') {
         showFoxWaiting(data.target);
+      } else if (data.type === 'foxDone') {
+        foxClose(true);
       } else if (data.type === 'foxAnswer') {
         showFoxAnswer(data.target, data.answer);
       } else if (data.type === 'seerTurn') {
@@ -389,7 +391,6 @@ function showThiefPanel(options) {
 
   thiefState = { picked: null, role: null };
   renderThiefSelection();
-  document.getElementById('thief-skip').disabled = false;
   panel.style.display = 'block';
   panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
 }
@@ -404,11 +405,6 @@ function thiefChoose(index, role) {
   conn.send({ type: 'thiefSteal', choice: index });
 }
 
-function thiefSkip() {
-  if (!conn || !conn.open) return;
-  lockThiefPanel();
-  conn.send({ type: 'thiefSteal', skip: true });
-}
 
 function hideThiefPanel() {
   const panel = document.getElementById('thief-panel');
@@ -877,11 +873,11 @@ function showFoxAnswer(name, answer) {
 }
 
 // Le Renard referme la réponse : son tour est fini, la régie lance « Fermez les yeux »
-function foxClose() {
+function foxClose(auto) {
   const wasShown = foxState.answerShown;
   foxState.answerShown = false;
   hidePanel('fox-panel');
-  if (wasShown && conn && conn.open) conn.send({ type: 'foxClosed' });
+  if (!auto && wasShown && conn && conn.open) conn.send({ type: 'foxClosed' });
 }
 
 // --- Carte de rôle en petit, en haut à droite, à côté du nom (dès que la partie a commencé) ---

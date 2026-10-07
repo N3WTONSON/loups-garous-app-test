@@ -285,7 +285,9 @@
     .death-cause { font-size: 2.8vh; color: #fcd34d; letter-spacing: 0.2vh; text-shadow: 0 0.3vh 0.8vh #000; }
 
     /* Carte du rôle du joueur mort : on voit d'abord le verso, puis la carte se retourne sur le recto */
-    .death-card { width: 22vh; height: 33vh; perspective: 120vh; }
+    .death-card { width: 26vh; height: 26vh; perspective: 120vh; }
+    .death-role { font-family: 'Wolf Brothers', sans-serif; font-size: 5vh; color: #fde68a; letter-spacing: 0.3vh; text-shadow: 0 0.4vh 1vh #000; opacity: 0; animation: roleLabelIn 0.5s ease-out 1.7s both; }
+    @keyframes roleLabelIn { from { opacity: 0; transform: translateY(1vh); } to { opacity: 1; transform: none; } }
     .death-card-inner {
       position: relative;
       width: 100%; height: 100%;
@@ -302,7 +304,7 @@
       background: #1a0b10;
       display: flex; align-items: center; justify-content: center;
     }
-    .card-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card-face img { width: 100%; height: 100%; object-fit: cover; object-position: center 25%; display: block; }
     .card-front { transform: rotateY(180deg); color: #fde68a; font-family: 'Wolf Brothers', sans-serif; font-size: 4vh; text-align: center; padding: 1vh; }
     @keyframes cardFlip { from { transform: rotateY(0deg); } to { transform: rotateY(180deg); } }
     @keyframes deathNameIn {
@@ -471,7 +473,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 48');
+    console.info('Projecteur - version 49');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -595,13 +597,13 @@
       });
     }
 
-    function fadeInVideo(video, ms = FADE_IN_MS) {
+    function fadeInVideo(video, ms = FADE_IN_MS, max = MAX_VOLUME) {
       const steps = 10;
       let i = 0;
       video.volume = 0;
       const tick = () => {
         i++;
-        video.volume = Math.min(MAX_VOLUME, MAX_VOLUME * i / steps);
+        video.volume = Math.min(max, max * i / steps);
         if (i < steps) setTimeout(tick, ms / steps);
       };
       setTimeout(tick, ms / steps);
@@ -713,7 +715,13 @@
         const item = document.createElement('div');
         item.className = 'death-item';
 
-        if (d.role) item.appendChild(buildRoleCard(d.role));
+        if (d.role) {
+          const rl = document.createElement('div');
+          rl.className = 'death-role';
+          rl.textContent = d.role;                  // le nom du rôle est noté au-dessus de la carte
+          item.appendChild(rl);
+          item.appendChild(buildRoleCard(d.role));
+        }
 
         const name = document.createElement('div');
         name.className = 'death-name';
@@ -929,7 +937,7 @@
           overlayVideo.src = data.url;
           overlayVideo.loop = data.loop !== false;   // false : lue une seule fois (ex. Maire)
           overlayVideo.style.display = 'block';
-          fadeInVideo(overlayVideo);               // volume plafonné + fondu d'entrée
+          fadeInVideo(overlayVideo, FADE_IN_MS, String(data.url).includes('Maire.mp4') ? 1.0 : MAX_VOLUME);   // la vidéo du Maire est un peu plus forte
           overlayVideo.play().catch((err) => console.error("Erreur overlay :", err));
           break;
 

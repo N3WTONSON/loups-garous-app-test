@@ -163,7 +163,7 @@
       const d = baseDelay();
       switch (msg.type) {
         case 'thiefTurn':
-          if (!msg.options.length || Math.random() < 0.2) send({ type: 'thiefSteal', skip: true }, d);
+          if (!msg.options.length) break;
           else send({ type: 'thiefSteal', choice: Math.floor(Math.random() * msg.options.length) }, d);
           break;
         case 'cupidTurn':
@@ -197,9 +197,6 @@
           break;
         case 'foxTurn':
           if (!msg.chosen && msg.targets.length) send({ type: 'foxChoice', target: rnd(msg.targets) }, d);
-          break;
-        case 'foxAnswer':
-          send({ type: 'foxClosed' }, d + 600);
           break;
         case 'hunterTurn':
           if (msg.targets.length) send({ type: 'hunterShoot', target: rnd(msg.targets) }, d);
