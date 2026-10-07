@@ -1,4 +1,4 @@
-const VERSION_APP = "61";
+const VERSION_APP = "62";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -99,6 +99,7 @@ let afterAudio = null;         // son à enchaîner dès que la voix en cours es
 let END_TURN_DELAY = 2500;     // délai (ms) entre la fin d'un tour et « Fermez les yeux »
 const CLOSE_EYES_AUDIO = 'Fermer les yeux.mp3';
 let gameStarted = false;       // vrai après le premier appel du Maire : la carte du rôle passe en petit sur les téléphones
+let reviewMode = false;         // phase de jour après le vol du Voleur : les joueurs revoient leur rôle
 let allSeenShown = false;      // vrai quand tous les joueurs ont pris connaissance de leur rôle
 let nightCalled = new Set();   // appels déjà faits cette nuit (pour proposer le prochain rôle)
 let nextCallKey = null;       // bouton à utiliser ensuite (mis en évidence)
@@ -146,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=61', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=62', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -402,10 +403,39 @@ function startBlocked() {
 }
 
 function checkAllSeen() {
-  if (!distributed || gameStarted || allSeenShown || !players.length) return;
+  if (!distributed || (gameStarted && !reviewMode) || allSeenShown || !players.length) return;
   if (!players.every((p) => p.seenRole)) return;
   allSeenShown = true;
+  if (reviewMode) { endRoleReview(); return; }
   showAllSeenModal();
+}
+
+// ---- Après le vol du Voleur : phase de jour, tous les joueurs reprennent connaissance de leur rôle ----
+function startRoleReview() {
+  if (reviewMode) return;
+  reviewMode = true;
+  allSeenShown = false;
+  players.forEach((p) => { p.seenRole = false; });
+  stopRoleVideo();
+  stopMusic(300);
+  waitMusicWanted = false;
+  players.forEach((p) => sendTo(p, { type: 'roleReview', on: true }));
+  sendToProjector({ action: 'dayVote', show: true, mode: 'roles' });
+  startDayMusic();
+  setNextCall(null);
+  showToast('🌞 Phase de jour : les joueurs reprennent connaissance de leur rôle sur leur téléphone.', 'info');
+  updateCallButtons();
+  renderMJDashboard();
+}
+
+function endRoleReview() {
+  reviewMode = false;
+  stopDayMusic();
+  sendToProjector({ action: 'dayVote', show: false });
+  players.forEach((p) => { sendTo(p, { type: 'roleReview', on: false }); sendTo(p, { type: 'gameStarted', started: true }); });
+  showToast('✅ Tous les joueurs ont repris connaissance de leur rôle : la nuit peut tomber.', 'info');
+  setNextCall('nuit');
+  renderMJDashboard();
 }
 
 function handleRoleSeen(conn) {
@@ -509,7 +539,7 @@ function updateCallButtons() {
     hint.textContent = "Distribuez les rôles : seuls les personnages en jeu apparaîtront ici.";
     hint.style.display = 'block';
   } else if (!allSeenShown) {
-    hint.textContent = "⏳ En attente : tous les joueurs doivent d'abord prendre connaissance de leur rôle sur leur téléphone. Les boutons sont bloqués.";
+    hint.textContent = reviewMode ? "🌞 Le Voleur a agi : tous les joueurs doivent reprendre connaissance de leur rôle sur leur téléphone. Les boutons sont bloqués." : "⏳ En attente : tous les joueurs doivent d'abord prendre connaissance de leur rôle sur leur téléphone. Les boutons sont bloqués.";
     hint.style.display = 'block';
   } else if (visible === 0) {
     hint.textContent = "Aucun personnage à appeler dans cette partie.";
@@ -947,7 +977,7 @@ function playCommand(cmd) {
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
     stopLobbyMusic();
     mayorCalled = true;
-    setNextCall('nuit');
+    setNextCall(activeCallRoles.has('Voleur') && !calledOnce.has('voleur') ? 'voleur' : 'nuit');
     waitMusicWanted = true;
     openMayorVote(true);                              // les joueurs votent depuis leur téléphone
     if (!gameStarted) {                           // premier appel du Maire : la partie commence
@@ -1023,7 +1053,6 @@ function onAudioFinished() {
 // Fin d'un tour de nuit (Voleur, Cupidon, Voyante, Loups, Sorcière) : « Fermez les yeux » est lu
 // automatiquement, après la voix en cours s'il y en a une.
 const CALL_ORDER = [
-  { key: 'voleur', role: 'Voleur', label: 'Le Voleur' },
   { key: 'cupidon', role: 'Cupidon', label: 'Cupidon' },
   { key: 'voyante', role: 'Voyante', label: 'La Voyante' },
   { key: 'renard', role: 'Renard', label: 'Le Renard' },
@@ -1213,7 +1242,7 @@ function witchCallAudio() {
 function playRole(role) {
   if (startBlocked()) return;
   const roleFiles = {
-    voleur: { audio: "Appel voleur V3.mp3", video: "Voleur.mp4" },
+    voleur: { audio: "Appel voleur V3.mp3", video: "Voleur.mp4", mode: 'full' },
     cupidon: { audio: "Appel Cupidon V2.mp3", video: "Cupidon.mp4" },
     voyante: { audio: "Appel voyante V2.mp3", video: "La voyante.mp4" },
     renard: { audio: "Appel renard V2.mp3", video: "Renard.mp4" },
@@ -1231,7 +1260,7 @@ function playRole(role) {
   setNextCall(null);
 
   playAudioFile(role === 'sorciere' ? witchCallAudio() : item.audio);
-  if (item.video) playRoleVideo(item.video, 'center');
+  if (item.video) playRoleVideo(item.video, item.mode || 'center');
 
   if (role === 'voleur' || role === 'cupidon') {
     calledOnce.add(role);
@@ -1322,7 +1351,7 @@ function handleThiefSteal(conn, data) {
 
   renderMJDashboard();
   showToast(`🕵️ ${thief.name} a volé « ${offer.role} » à ${holder.name}, qui devient Villageois.`, 'info');
-  scheduleCloseEyes();
+  setTimeout(startRoleReview, 1500);
 }
 
 const HOWL_FILES = ["Le hurlement du loup 1.mp3", "Le hurlement du loup 2.mp3", "Le hurlement du loup 3.mp3"];
@@ -1379,6 +1408,7 @@ function resetGameAutomation() {
   mayorCalled = false;
   nightCalled = new Set();
   nextCallKey = null;
+  reviewMode = false;
   foxPowerLost = false;
   if (rps) { clearTimeout(rps.timer); rps = null; }
   waitMusicWanted = false;

@@ -243,6 +243,8 @@ function connect(room, name, token, isAuto) {
       } else if (data.type === 'mayorClose') {
         hidePanel('mayor-panel');
         hidePanel('candidacy-panel');
+      } else if (data.type === 'roleReview') {
+        setRoleReview(data.on !== false);
       } else if (data.type === 'gameStarted') {
         applyGameStarted(data.started !== false);
       } else if (data.type === 'hunterTurn') {
@@ -336,6 +338,7 @@ function toggleRoleReveal() {
 
   if (isRevealed) {
     try { if (conn && conn.open) conn.send({ type: 'roleSeen' }); } catch (e) { /* ignoré */ }
+    { const rb = document.getElementById('review-banner'); if (rb) rb.textContent = '✅ Rôle vu. Mémorise-le, puis attends les autres joueurs…'; }
     cardBack.classList.add('revealed');
     cardBack.querySelector('span').textContent = "🔒 Toucher pour masquer";
     if (versoImg) versoImg.style.display = 'none';
@@ -941,6 +944,24 @@ function foxClose(auto) {
 }
 
 // --- Carte de rôle en petit, en haut à droite, à côté du nom (dès que la partie a commencé) ---
+// Après le vol du Voleur : phase de jour, le joueur reprend connaissance de son rôle
+let roleReviewOn = false;
+function setRoleReview(on) {
+  roleReviewOn = on;
+  let b = document.getElementById('review-banner');
+  if (!on) { if (b) b.remove(); return; }
+  if (isRevealed) toggleRoleReveal();       // on repart d'une carte cachée
+  applyGameStarted(false);                   // la grande carte revient
+  const card = document.getElementById('game-card');
+  if (!b && card) {
+    b = document.createElement('div');
+    b.id = 'review-banner';
+    b.style.cssText = 'margin:0 0 12px;padding:12px;border-radius:10px;border:2px solid #fcd34d;background:rgba(252,211,77,0.14);color:#fde68a;font-weight:600;';
+    card.insertBefore(b, card.firstChild);
+  }
+  if (b) b.textContent = '🌞 Le Voleur a agi : reprends connaissance de ton rôle (touche la carte pour la révéler).';
+}
+
 function applyGameStarted(started) {
   const wasStarted = gameStartedUI;
   gameStartedUI = !!started;

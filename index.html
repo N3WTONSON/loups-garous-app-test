@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>Loup-Garou - Régie Maître du Jeu</title>
-  <link rel="stylesheet" href="style.css?v=61">
+  <link rel="stylesheet" href="style.css?v=62">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -156,13 +156,13 @@
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/images/Maire.png" alt="Maire">
               <span>Le Maire</span>
             </button>
-            <button class="btn-role-card" id="night-call-btn" data-key="nuit" data-phase="1" onclick="playNightPhase()">
-              <span class="phase-icon">🌌</span>
-              <span>Nuit Tombante</span>
-            </button>
             <button class="btn-role-card" data-role="Voleur" data-call="voleur" data-key="voleur" onclick="playRole('voleur')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Voleur%201.png" alt="Voleur">
               <span>Le Voleur</span>
+            </button>
+            <button class="btn-role-card" id="night-call-btn" data-key="nuit" data-phase="1" onclick="playNightPhase()">
+              <span class="phase-icon">🌌</span>
+              <span>Nuit Tombante</span>
             </button>
             <button class="btn-role-card" data-role="Cupidon" data-call="cupidon" data-key="cupidon" onclick="playRole('cupidon')">
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Cupidon.png" alt="Cupidon">
@@ -230,7 +230,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 61</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 62</p>
 
   <script>
     (function () {
@@ -261,6 +261,6 @@
       });
     })();
   </script>
-  <script src="script.js?v=61"></script>
+  <script src="script.js?v=62"></script>
 </body>
 </html>
