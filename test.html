@@ -5,11 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>🧪 Loup-Garou - Régie (MODE TEST)</title>
-  <link rel="stylesheet" href="style.css?v=67">
+  <link rel="stylesheet" href="style.css?v=69">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
 <body>
+  <script src="bg.js?v=69"></script>
 
 <header>
   <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png?v=2" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
@@ -250,7 +251,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 67 · MODE TEST</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 69 · MODE TEST</p>
 
   <script>
     (function () {
@@ -271,13 +272,6 @@
         var img = document.querySelector(".site-title-img");
         if (url && img) { img.src = url; console.info("Titre chargé depuis :", url); }
         else console.warn("Titre.png introuvable sur Supabase.");
-      });
-      find(["fond-village.jpg", "fond-village.jpeg", "fond-village.png"], function (url) {
-        if (url) {
-          document.body.style.backgroundImage =
-            "radial-gradient(circle at center, rgba(37, 99, 235, 0.15) 0%, rgba(11, 13, 20, 0.95) 100%), url(\"" + url + "\")";
-          console.info("Fond chargé depuis :", url);
-        } else console.warn("fond-village.jpg introuvable sur Supabase.");
       });
     })();
   </script>
@@ -302,7 +296,7 @@
     });
   </script>
   <script>window.LG_TEST_MODE = true;</script>
-  <script src="script.js?v=67"></script>
-  <script src="test-tools.js?v=67"></script>
+  <script src="script.js?v=69"></script>
+  <script src="test-tools.js?v=69"></script>
 </body>
 </html>

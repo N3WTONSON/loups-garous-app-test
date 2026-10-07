@@ -14,7 +14,6 @@ const ASSETS = {
     "Renard.jpg": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Renard%201.png",
     "Petite Fille.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Petite%20Fille.png?v=2",
     "Sorciere.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Sorciere.png",
-    "fond-village.jpg": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/fond-village.jpg",
   }
 };
 
@@ -243,6 +242,8 @@ function connect(room, name, token, isAuto) {
       } else if (data.type === 'mayorClose') {
         hidePanel('mayor-panel');
         hidePanel('candidacy-panel');
+      } else if (data.type === 'phase') {
+        if (window.setBgPhase) window.setBgPhase(data.phase);
       } else if (data.type === 'roleReview') {
         setRoleReview(data.on !== false);
       } else if (data.type === 'gameStarted') {

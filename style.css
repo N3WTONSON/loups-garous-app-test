@@ -41,12 +41,6 @@ body {
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background-color: var(--bg-color);
-  background-image: radial-gradient(circle at center, rgba(37, 99, 235, 0.15) 0%, rgba(11, 13, 20, 0.95) 100%),
-                    url('https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/fond-village.jpg');
-  background-size: cover;
-  background-position: center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
   color: var(--text-color);
   min-height: 100vh;
 }

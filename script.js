@@ -1,4 +1,4 @@
-const VERSION_APP = "67";
+const VERSION_APP = "69";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -21,7 +21,6 @@ const ASSETS = {
     "Petite Fille.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Petite%20Fille.png?v=2",
     "Sorciere.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Sorciere.png",
     "Titre.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png?v=2",
-    "fond-village.jpg": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/fond-village.jpg",
   },
   audio: {
     "0 mort.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/0%20mort.mp3",
@@ -99,6 +98,7 @@ let afterAudio = null;         // son à enchaîner dès que la voix en cours es
 let END_TURN_DELAY = 2500;     // délai (ms) entre la fin d'un tour et « Fermez les yeux »
 const CLOSE_EYES_AUDIO = 'Fermer les yeux.mp3';
 let gameStarted = false;       // vrai après le premier appel du Maire : la carte du rôle passe en petit sur les téléphones
+let currentPhase = 'night';      // fond vidéo : 'night' ou 'day' (scènes de jour)
 let reviewMode = false;         // phase de jour après le vol du Voleur : les joueurs revoient leur rôle
 let allSeenShown = false;      // vrai quand tous les joueurs ont pris connaissance de leur rôle
 let nightCalled = new Set();   // appels déjà faits cette nuit (pour proposer le prochain rôle)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=67', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=69', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -424,9 +424,17 @@ function checkAllSeen() {
 }
 
 // ---- Après le vol du Voleur : phase de jour, tous les joueurs reprennent connaissance de leur rôle ----
+// Fond vidéo de la régie et des téléphones : jour pour les scènes de jour, nuit sinon
+function setPhase(phase) {
+  currentPhase = phase === 'day' ? 'day' : 'night';
+  if (window.setBgPhase) window.setBgPhase(currentPhase);
+  players.forEach((p) => sendTo(p, { type: 'phase', phase: currentPhase }));
+}
+
 function startRoleReview() {
   if (reviewMode) return;
   reviewMode = true;
+  setPhase('day');
   allSeenShown = false;
   players.forEach((p) => { p.seenRole = false; });
   stopRoleVideo();
@@ -908,6 +916,7 @@ function presentCharacters() {
 
 function playNightPhase() {
   if (startBlocked()) return;
+  setPhase('night');
   nightCalled = new Set();
   setNextCall(null);
   stopLobbyMusic();
@@ -933,6 +942,7 @@ function startDayScene() {
   hunterState = null;
   hunterThenDay = false;
   // le jour se lève : plus de vidéo YouTube, écran « le village débat » + musique Feast Circle 1 à 30 %
+  setPhase('day');
   dayPause = false;
   waitMusicWanted = false;
   stopWaitMusic();
@@ -988,7 +998,6 @@ function playCommand(cmd) {
     if (startBlocked()) return;
     if (mayorCalled) { showToast('👑 Le Maire a déjà été appelé : le bouton est bloqué.', 'info'); return; }
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
-    playAudioFile("Maire.mp3");                   // voix du MJ : « Le village va maintenant élire son maire ! »
     stopLobbyMusic();
     mayorCalled = true;
     setNextCall(activeCallRoles.has('Voleur') && !calledOnce.has('voleur') ? 'voleur' : 'nuit');
@@ -1423,6 +1432,7 @@ function resetGameAutomation() {
   nightCalled = new Set();
   nextCallKey = null;
   reviewMode = false;
+  setPhase('night');
   foxPowerLost = false;
   if (rps) { clearTimeout(rps.timer); rps = null; }
   waitMusicWanted = false;
@@ -1579,6 +1589,7 @@ function resyncPlayer(p) {
   if (rps && rps.names.includes(p.name) && !rps.picks.has(p.name)) sendRpsTurn(p);
   if (hunterPending === p.name) { if (hunterChoice) sendTo(p, { type: 'hunterDone' }); else sendHunterTurn(p); }
   if (gameStarted) sendTo(p, { type: 'gameStarted', started: true });
+  sendTo(p, { type: 'phase', phase: currentPhase });
   if (!p.alive) return;
   if (thiefOffers.has(p.name)) sendThiefTurn(p);
   if (cupidWaiting.has(p.name)) sendCupidTurn(p);
