@@ -13,7 +13,7 @@ const ASSETS = {
     "Villageois.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Villageois.png",
     "Renard.jpg": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Renard.jpg",
     "Petite Fille.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Petite%20Fille.png",
-    "Sorcière.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Sorci%C3%A8re.png",
+    "Sorciere.png": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Sorciere.png",
     "fond-village.jpg": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/fond-village.jpg",
   }
 };
@@ -32,6 +32,7 @@ let peer = null;
 let conn = null;
 let myRole = "";
 let isRevealed = false;
+let gameStartedUI = false;   // vrai après le premier appel du Maire : la carte passe en petit en haut à droite
 let joined = false;
 let session = null;
 let retryTimer = null;
@@ -53,7 +54,7 @@ const roleData = {
     description: "🔮 <strong>La Voyante :</strong> Chaque nuit, vous pouvez observer la véritable identité d'un joueur de votre choix avant que le village ne se réveille."
   },
   "Sorcière": {
-    image: "Sorcière.png",
+    image: "Sorciere.png",
     description: "🧪 <strong>La Sorcière :</strong> Vous possédez deux potions à usage unique : une potion de vie pour sauver la victime des loups, et une potion de mort pour éliminer un joueur."
   },
   "Chasseur": {
@@ -229,6 +230,12 @@ function connect(room, name, token, isAuto) {
         hidePanel('succession-panel');
       } else if (data.type === 'mayorClose') {
         hidePanel('mayor-panel');
+      } else if (data.type === 'gameStarted') {
+        applyGameStarted(data.started !== false);
+      } else if (data.type === 'hunterTurn') {
+        showHunterPanel(data.targets || []);
+      } else if (data.type === 'hunterDone') {
+        showHunterDone();
       } else if (data.type === 'gameOver') {
         showGameOver(data.winner);
       } else if (data.type === 'foxTurn') {
@@ -323,9 +330,26 @@ function toggleRoleReveal() {
     if (versoImg) versoImg.style.display = 'block';
     roleDetails.style.display = 'none';
   }
+  updateMiniCard();
 }
 
 // --- Tour du Voleur : choisir l'un des 2 rôles proposés (cartes, sans nom de joueur) ---
+let thiefState = { picked: null, role: null };
+
+function renderThiefSelection() {
+  document.querySelectorAll('#thief-cards .thief-card').forEach((c, i) => c.classList.toggle('selected', thiefState.picked === i));
+  const btn = document.getElementById('thief-confirm');
+  if (btn) {
+    btn.disabled = thiefState.picked === null;
+    btn.textContent = thiefState.picked === null ? '🕵️ Voler ce rôle' : `🕵️ Voler « ${thiefState.role} »`;
+  }
+}
+
+function thiefConfirm() {
+  if (thiefState.picked === null) return;
+  thiefChoose(thiefState.picked, thiefState.role);
+}
+
 function showThiefPanel(options) {
   const panel = document.getElementById('thief-panel');
   const list = document.getElementById('thief-cards');
@@ -352,10 +376,12 @@ function showThiefPanel(options) {
     desc.innerHTML = data.description;
     card.appendChild(desc);
 
-    card.onclick = () => thiefChoose(index, role);
+    card.onclick = () => { thiefState.picked = index; thiefState.role = role; renderThiefSelection(); };
     list.appendChild(card);
   });
 
+  thiefState = { picked: null, role: null };
+  renderThiefSelection();
   document.getElementById('thief-skip').disabled = false;
   panel.style.display = 'block';
   panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -367,14 +393,12 @@ function lockThiefPanel() {
 
 function thiefChoose(index, role) {
   if (!conn || !conn.open) return;
-  if (!confirm(`Voler le rôle « ${role} » ?`)) return;
   lockThiefPanel();
   conn.send({ type: 'thiefSteal', choice: index });
 }
 
 function thiefSkip() {
   if (!conn || !conn.open) return;
-  if (!confirm("Garder ton rôle de Voleur ?")) return;
   lockThiefPanel();
   conn.send({ type: 'thiefSteal', skip: true });
 }
@@ -466,7 +490,6 @@ function renderCupidList() {
 
 function cupidConfirm() {
   if (!conn || !conn.open || cupidState.picked.length !== 2) return;
-  if (!confirm(`Unir ${cupidState.picked[0]} et ${cupidState.picked[1]} ?`)) return;
   document.querySelectorAll('#cupid-panel button').forEach((b) => { b.disabled = true; });
   conn.send({ type: 'cupidChoice', names: cupidState.picked });
 }
@@ -572,10 +595,6 @@ function witchToggleSave() {
 function witchConfirm() {
   if (!conn || !conn.open) return;
   if (witchState.save && witchState.poison) return;   // jamais les deux potions en même temps
-  const parts = [];
-  if (witchState.save) parts.push(`sauver ${witchState.victim}`);
-  if (witchState.poison) parts.push(`empoisonner ${witchState.poison}`);
-  if (!confirm(parts.length ? `Confirmer : ${parts.join(' et ')} ?` : "Ne rien faire cette nuit ?")) return;
   document.querySelectorAll('#witch-panel button').forEach((b) => { b.disabled = true; });
   conn.send({ type: 'witchAction', save: witchState.save, poison: witchState.poison });
 }
@@ -648,7 +667,6 @@ function renderSeerList() {
 
 function seerConfirm() {
   if (!conn || !conn.open || !seerState.picked) return;
-  if (!confirm(`Découvrir le rôle de ${seerState.picked} ? Tu ne peux observer qu'un seul joueur.`)) return;
   document.querySelectorAll('#seer-choose button').forEach((b) => { b.disabled = true; });
   conn.send({ type: 'seerChoice', target: seerState.picked });
 }
@@ -738,7 +756,6 @@ function renderSuccessionList() {
 
 function successionConfirm() {
   if (!conn || !conn.open || !successionState.picked) return;
-  if (!confirm(`Transmettre le rôle de Maire à ${successionState.picked} ?`)) return;
   document.querySelectorAll('#succession-panel button').forEach((b) => { b.disabled = true; });
   conn.send({ type: 'mayorSuccessor', target: successionState.picked });
 }
@@ -793,7 +810,6 @@ function renderFoxList() {
 
 function foxConfirm() {
   if (!conn || !conn.open || !foxState.picked) return;
-  if (!confirm(`Sonder ${foxState.picked} ? Tu ne peux désigner qu'un seul joueur.`)) return;
   document.querySelectorAll('#fox-choose button').forEach((b) => { b.disabled = true; });
   conn.send({ type: 'foxChoice', target: foxState.picked });
 }
@@ -824,4 +840,61 @@ function foxClose() {
   foxState.answerShown = false;
   hidePanel('fox-panel');
   if (wasShown && conn && conn.open) conn.send({ type: 'foxClosed' });
+}
+
+// --- Carte de rôle en petit, en haut à droite, à côté du nom (dès que la partie a commencé) ---
+function applyGameStarted(started) {
+  gameStartedUI = !!started;
+  const big = document.getElementById('secret-card');
+  const card = document.getElementById('game-card');
+  if (big) big.style.display = gameStartedUI ? 'none' : '';
+  if (card) card.classList.toggle('has-mini', gameStartedUI && !!myRole);
+  updateMiniCard();
+}
+
+function updateMiniCard() {
+  const mini = document.getElementById('mini-card');
+  const img = document.getElementById('mini-card-img');
+  const card = document.getElementById('game-card');
+  if (!mini || !img) return;
+  const show = gameStartedUI && !!myRole;
+  mini.style.display = show ? 'block' : 'none';
+  if (card) card.classList.toggle('has-mini', show);
+  if (!show) return;
+  const data = roleData[myRole];
+  img.src = (isRevealed && data && data.image) ? mediaUrl('images', data.image) : mediaUrl('images', 'Verso.png');
+  mini.title = isRevealed ? 'Toucher pour masquer mon rôle' : 'Toucher pour voir mon rôle';
+}
+
+// --- Chasseur mort : il choisit sa dernière cible (noms uniquement) ---
+let hunterState = { targets: [], picked: null };
+
+function showHunterPanel(targets) {
+  hunterState = { targets, picked: null };
+  renderHunterList();
+  showPanel('hunter-panel');
+}
+
+function renderHunterList() {
+  const list = document.getElementById('hunter-list');
+  list.innerHTML = '';
+  hunterState.targets.forEach((name) => {
+    list.appendChild(pickButton(name, {
+      selected: hunterState.picked === name,
+      onClick: () => { hunterState.picked = name; renderHunterList(); }
+    }));
+  });
+  const btn = document.getElementById('hunter-confirm');
+  btn.disabled = !hunterState.picked;
+  btn.textContent = hunterState.picked ? `🏹 Tirer sur ${hunterState.picked}` : '🏹 Tirer';
+}
+
+function hunterConfirm() {
+  if (!conn || !conn.open || !hunterState.picked) return;
+  document.querySelectorAll('#hunter-panel button').forEach((b) => { b.disabled = true; });
+  conn.send({ type: 'hunterShoot', target: hunterState.picked });
+}
+
+function showHunterDone() {
+  hidePanel('hunter-panel');
 }

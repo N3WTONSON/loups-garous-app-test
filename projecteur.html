@@ -264,26 +264,50 @@
     }
     #death-overlay.over-video { background: radial-gradient(circle at center, rgba(0, 0, 0, 0.12) 0%, rgba(0, 0, 0, 0.55) 100%); }
     #death-overlay.out { opacity: 0; }
-    #death-list { display: flex; flex-direction: column; align-items: center; gap: 5vh; max-width: 92vw; }
-    .death-item { position: relative; padding: 2vh 5vw; text-align: center; }
+    #death-list { --n: 1; display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: flex-start; gap: 3vh 4vw; max-width: 94vw; }
+    .death-item { position: relative; padding: 1vh 2vw; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 1.6vh; }
     .death-name {
       --len: 8;
       font-family: 'Angel Wish', 'Wolf Brothers', 'Segoe UI', sans-serif;
-      font-size: min(19vh, calc(190vw / var(--len)));
+      font-size: min(13vh, calc(150vw / (var(--len) * var(--n))));
       line-height: 1;
-      letter-spacing: 0.5vh;
+      letter-spacing: 0.4vh;
       white-space: nowrap;
       color: #f4dcdc;
       text-shadow: 0 0 3vh rgba(220, 38, 38, 0.75), 0 0.6vh 1.4vh #000;
       animation: deathNameIn 0.45s ease-out both;
     }
-    .death-sub { margin-top: 1.5vh; font-size: 3.4vh; color: #fca5a5; text-shadow: 0 0.3vh 0.8vh #000; }
+    .death-sub { font-size: 3vh; color: #fca5a5; text-shadow: 0 0.3vh 0.8vh #000; }
+    .death-cause { font-size: 2.8vh; color: #fcd34d; letter-spacing: 0.2vh; text-shadow: 0 0.3vh 0.8vh #000; }
+
+    /* Carte du rôle du joueur mort : on voit d'abord le verso, puis la carte se retourne sur le recto */
+    .death-card { width: 22vh; height: 33vh; perspective: 120vh; }
+    .death-card-inner {
+      position: relative;
+      width: 100%; height: 100%;
+      transform-style: preserve-3d;
+      animation: cardFlip 1.1s ease-in-out 1.1s forwards;
+    }
+    .card-face {
+      position: absolute; inset: 0;
+      backface-visibility: hidden; -webkit-backface-visibility: hidden;
+      border-radius: 1.4vh;
+      overflow: hidden;
+      box-shadow: 0 1vh 3vh rgba(0, 0, 0, 0.85);
+      border: 0.3vh solid rgba(254, 202, 202, 0.5);
+      background: #1a0b10;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card-face img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .card-front { transform: rotateY(180deg); color: #fde68a; font-family: 'Wolf Brothers', sans-serif; font-size: 4vh; text-align: center; padding: 1vh; }
+    @keyframes cardFlip { from { transform: rotateY(0deg); } to { transform: rotateY(180deg); } }
     @keyframes deathNameIn {
       from { opacity: 0; transform: scale(1.15); filter: blur(1vh); }
       to   { opacity: 1; transform: none; filter: none; }
     }
     @media (prefers-reduced-motion: reduce) {
       .death-name { animation: none; }
+      .death-card-inner { animation-duration: 0.01s; animation-delay: 0s; }
     }
 
     /* ÉLECTION DU MAIRE : nom doré + couronne */
@@ -419,13 +443,17 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 40');
+    console.info('Projecteur - version 41');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
     let pendingLoop = true;
     let loopScene = true;       // false pour la vidéo de présentation
-    let targetVolume = 100;
+    // ---- Limite du niveau audio : aucun son ne dépasse ces plafonds, et tout démarre en fondu (jamais « d'un seul coup ») ----
+    const MAX_VOLUME = 0.8;              // plafond des vidéos MP4 (1 = maximum)
+    const MAX_YT_VOLUME = 80;            // plafond de la scène YouTube (0 à 100)
+    const FADE_IN_MS = 500;
+    let targetVolume = MAX_YT_VOLUME;
     let fadeInterval = null;
     const overlayVideo = document.getElementById('overlay-video');
     const waitingScreen = document.getElementById('waiting-screen');
@@ -527,39 +555,104 @@
       });
     }
 
+    function fadeInVideo(video, ms = FADE_IN_MS) {
+      const steps = 10;
+      let i = 0;
+      video.volume = 0;
+      const tick = () => {
+        i++;
+        video.volume = Math.min(MAX_VOLUME, MAX_VOLUME * i / steps);
+        if (i < steps) setTimeout(tick, ms / steps);
+      };
+      setTimeout(tick, ms / steps);
+    }
+
     function playScene(videoId, loop = true) {
       loopScene = loop;
       document.getElementById('player').style.visibility = 'visible';
       hideWaitingScreen();
       hideOverlay();
       ytPlayer.loadVideoById(videoId);
-      ytPlayer.setVolume(targetVolume);
+      ytPlayer.setVolume(0);
       ytPlayer.playVideo();
+      rampYT(targetVolume, 900);               // fondu d'entrée jusqu'au plafond
     }
 
-    function fadeVolumeTo(target01, durationMs = 600) {
-      targetVolume = Math.max(0, Math.min(100, target01 * 100));
+    // rampe du volume YouTube vers un niveau absolu (0-100, jamais au-dessus du plafond)
+    function rampYT(toPct, durationMs = 600) {
+      toPct = Math.max(0, Math.min(MAX_YT_VOLUME, toPct));
       if (!ytReady) return;
       clearInterval(fadeInterval);
-
       const startVolume = ytPlayer.getVolume();
-      const distance = targetVolume - startVolume;
+      const distance = toPct - startVolume;
       const steps = 30;
       const stepTime = durationMs / steps;
       let currentStep = 0;
-
       fadeInterval = setInterval(() => {
         currentStep++;
-        ytPlayer.setVolume(Math.max(0, Math.min(100, startVolume + distance * (currentStep / steps))));
+        ytPlayer.setVolume(Math.max(0, Math.min(MAX_YT_VOLUME, startVolume + distance * (currentStep / steps))));
         if (currentStep >= steps) {
-          ytPlayer.setVolume(targetVolume);
+          ytPlayer.setVolume(toPct);
           clearInterval(fadeInterval);
         }
       }, stepTime);
     }
 
+    // volume relatif demandé par la régie (1 = niveau normal = plafond, 0.25 = voix du MJ par-dessus)
+    function fadeVolumeTo(target01, durationMs = 600) {
+      targetVolume = Math.max(0, Math.min(MAX_YT_VOLUME, target01 * MAX_YT_VOLUME));
+      rampYT(targetVolume, durationMs);
+    }
 
-    // --- ANNONCE DE MORT (nom en grand + griffures) ---
+
+    // --- ANNONCE DE MORT (nom + carte de rôle qui se retourne) ---
+    const IMG_BASE = 'https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/';
+    const VERSO_URL = IMG_BASE + 'joueur/images/Verso.png';
+    const ROLE_IMG = {
+      'Loup-Garou': 'Loup-Garou.png', 'Villageois': 'Villageois.png', 'Voyante': 'Voyante.png', 'Sorcière': 'Sorciere.png',
+      'Chasseur': 'Chasseur.png', 'Cupidon': 'Cupidon.png', 'Voleur': 'Voleur.png', 'Renard': 'Renard.jpg', 'Petite Fille': 'Petite Fille.png'
+    };
+    // comment le joueur est mort (affiché sous son nom)
+    const CAUSE_TEXT = {
+      wolves: '🐺 Dévoré par les loups', poison: '☠️ Empoisonné par la Sorcière',
+      vote: '🗳️ Éliminé par le village', hunter: '🏹 Abattu par le Chasseur'
+    };
+    function roleImgUrl(role) {
+      const f = ROLE_IMG[role];
+      return f ? IMG_BASE + 'images/' + encodeURIComponent(f) : null;
+    }
+    // carte : verso visible d'abord, puis elle se retourne sur le recto (le rôle)
+    function buildRoleCard(role) {
+      const card = document.createElement('div');
+      card.className = 'death-card';
+      const inner = document.createElement('div');
+      inner.className = 'death-card-inner';
+
+      const back = document.createElement('div');
+      back.className = 'card-face card-back';
+      const backImg = document.createElement('img');
+      backImg.alt = '';
+      backImg.src = VERSO_URL;
+      back.appendChild(backImg);
+
+      const front = document.createElement('div');
+      front.className = 'card-face card-front';
+      const url = roleImgUrl(role);
+      if (url) {
+        const img = document.createElement('img');
+        img.alt = role;
+        img.onerror = () => { img.remove(); front.textContent = role; };   // image introuvable : le nom du rôle s'affiche
+        img.src = url;
+        front.appendChild(img);
+      } else {
+        front.textContent = role;
+      }
+      inner.appendChild(back);
+      inner.appendChild(front);
+      card.appendChild(inner);
+      return card;
+    }
+
     let deathTimer = null;
     let eventActive = false;
     let eventTimer = null;
@@ -575,15 +668,26 @@
       const overlay = document.getElementById('death-overlay');
       const list = document.getElementById('death-list');
       list.innerHTML = '';
+      list.style.setProperty('--n', Math.max((deaths || []).length, 1));
       (deaths || []).forEach((d) => {
         const item = document.createElement('div');
         item.className = 'death-item';
+
+        if (d.role) item.appendChild(buildRoleCard(d.role));
 
         const name = document.createElement('div');
         name.className = 'death-name';
         name.style.setProperty('--len', Math.max(String(d.name).length, 4));
         name.textContent = d.name;            // textContent : pas d'injection HTML
         item.appendChild(name);
+
+        const causeText = d.love ? null : CAUSE_TEXT[opts.cause];
+        if (causeText) {
+          const cause = document.createElement('div');
+          cause.className = 'death-cause';
+          cause.textContent = causeText;
+          item.appendChild(cause);
+        }
 
         if (d.love) {
           const sub = document.createElement('div');
@@ -658,21 +762,23 @@
         ytPlayer.setVolume(Math.min(targetVolume, 10));   // la scène passe au second plan
       }
 
-      const showNames = () => showDeaths(data.deaths, { overVideo: true, autoHide: false });
+      const showNames = () => showDeaths(data.deaths, { overVideo: true, autoHide: false, cause: data.cause });
+      const noNames = data.namesAt === 'none' || !(data.deaths && data.deaths.length);
       eventVideo.onended = () => {
         if (data.namesAt === 'end') showNames();
-        eventTimer = setTimeout(endEvent, data.namesAt === 'end' ? 9000 : 6000);
+        eventTimer = setTimeout(endEvent, noNames ? 300 : (data.namesAt === 'end' ? 11000 : 8000));
       };
       eventVideo.onerror = () => {            // vidéo introuvable : on affiche quand même les noms
-        showNames();
-        eventTimer = setTimeout(endEvent, 9000);
+        if (!noNames) showNames();
+        eventTimer = setTimeout(endEvent, noNames ? 300 : 11000);
       };
 
       eventVideo.src = data.url;
       eventVideo.style.display = 'block';
       eventVideo.currentTime = 0;
+      fadeInVideo(eventVideo);                 // volume plafonné + fondu d'entrée
       eventVideo.play().catch((err) => console.error('Erreur vidéo d\'annonce :', err));
-      if (data.namesAt === 'start') showNames();
+      if (data.namesAt === 'start' && !noNames) showNames();
     }
 
     // --- QR CODE PERMANENT (en bas à droite) ---
@@ -764,6 +870,7 @@
           overlayVideo.src = data.url;
           overlayVideo.loop = data.loop !== false;   // false : lue une seule fois (ex. Maire)
           overlayVideo.style.display = 'block';
+          fadeInVideo(overlayVideo);               // volume plafonné + fondu d'entrée
           overlayVideo.play().catch((err) => console.error("Erreur overlay :", err));
           break;
 

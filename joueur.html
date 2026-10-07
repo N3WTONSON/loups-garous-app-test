@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Loup-Garou - Espace Joueur</title>
-  <link rel="stylesheet" href="style.css?v=40">
+  <link rel="stylesheet" href="style.css?v=41">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
 </head>
 <body>
@@ -26,6 +26,10 @@
     </section>
 
     <section class="card" id="game-card" style="display: none; text-align: center;">
+      <!-- Carte du rôle en petit, en haut à droite (visible dès que la partie a commencé) -->
+      <button type="button" id="mini-card" class="mini-card" style="display: none;" onclick="toggleRoleReveal()" aria-label="Voir mon rôle">
+        <img id="mini-card-img" alt="Ma carte de rôle">
+      </button>
       <h2 id="welcome-title" class="nom-joueur">Bienvenue !</h2>
       <p id="status-text">En attente de la distribution par le Maître du Jeu...</p>
       <p id="lover-line" class="lover-line" style="display: none;"></p>
@@ -37,9 +41,18 @@
         <h3>🕵️ Voleur, c'est ton tour !</h3>
         <p>Choisis l'un de ces deux rôles. Tu l'obtiens à la place de ta carte, et le joueur qui le possède devient simple Villageois.</p>
         <div id="thief-cards" class="thief-cards"></div>
+        <button class="btn btn-night" id="thief-confirm" onclick="thiefConfirm()" disabled>🕵️ Voler ce rôle</button>
         <button class="btn btn-effect" id="thief-skip" onclick="thiefSkip()">Garder mon rôle</button>
       </div>
 
+
+      <!-- Chasseur mort : dernière cible -->
+      <div id="hunter-panel" class="action-panel" style="display: none;">
+        <h3>🏹 Chasseur, ta dernière cible !</h3>
+        <p>Tu viens de mourir. Avant de partir, choisis le joueur que tu emportes avec toi.</p>
+        <div id="hunter-list" class="pick-list"></div>
+        <button class="btn btn-danger" id="hunter-confirm" onclick="hunterConfirm()" disabled>🏹 Tirer</button>
+      </div>
 
       <!-- Cupidon : désigner les 2 amoureux -->
       <div id="cupid-panel" class="action-panel" style="display: none;">
@@ -151,7 +164,7 @@
       </div>
     </section>
   </main>
-  <p class="hint" style="text-align:center;">Version 40</p>
+  <p class="hint" style="text-align:center;">Version 41</p>
 
   <script>
     (function () {
@@ -180,7 +193,7 @@
       });
     })();
   </script>
-  <script src="sim-peer.js?v=40"></script>
-  <script src="player.js?v=40"></script>
+  <script src="sim-peer.js?v=41"></script>
+  <script src="player.js?v=41"></script>
 </body>
 </html>

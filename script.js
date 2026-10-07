@@ -1,4 +1,4 @@
-const VERSION_APP = "40";
+const VERSION_APP = "41";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -46,12 +46,12 @@ const ASSETS = {
     "Sorciere 2 potions.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%202%20potions.mp3",
     "Sorciere potion de vie.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%20potion%20de%20vie.mp3",
     "Sorciere potion de mort.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%20potion%20de%20mort.mp3",
-    "chasseur.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/chasseur.mp3",
   },
   video: {
     "Mort Loup.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Mort%20Loup.mp4",
     "Elimination 2.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Elimination%202.mp4",
     "Empoisoner.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Empoisoner.mp4",
+    "Mort tire.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Mort%20tire.mp4",
     "Chasseur.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Chasseur.mp4",
     "Cupidon.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Cupidon.mp4",
     "La voyante.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/La%20voyante.mp4",
@@ -88,6 +88,7 @@ let distributed = false;
 let afterAudio = null;         // son à enchaîner dès que la voix en cours est terminée
 let END_TURN_DELAY = 2500;     // délai (ms) entre la fin d'un tour et « Fermez les yeux »
 const CLOSE_EYES_AUDIO = 'Fermer les yeux.mp3';
+let gameStarted = false;       // vrai après le premier appel du Maire : la carte du rôle passe en petit sur les téléphones
 let currentTurnRole = null;   // rôle actuellement appelé (surbrillance du joueur dans le tableau de bord du MJ)
 const TURN_ROLE_BY_CALL = { voleur: 'Voleur', cupidon: 'Cupidon', voyante: 'Voyante', renard: 'Renard', loups: 'Loup-Garou', sorciere: 'Sorcière', chasseur: 'Chasseur' };
 let activeCallRoles = new Set();
@@ -132,7 +133,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=40', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=41', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -145,8 +146,13 @@ window.addEventListener('message', (event) => {
     syncLobbyToProjector();
   } else if (data.action === 'eventEnded') {
     // l'annonce de mort vient de se terminer : victoire éventuelle d'abord, sinon l'annonce suivante, puis le lever du jour
+    if (hunterState) { onHunterEventEnded(); return; }
     if (victoryPending && allWolvesDead()) { dayQueue = null; showVictory(); }
-    else { victoryPending = false; if (dayQueue) nextDayStep(); }
+    else {
+      victoryPending = false;
+      if (dayQueue) nextDayStep();
+      else if (hunterWaiting()) startHunterSequence(false);   // mort pendant la journée (vote) : le Chasseur tire ensuite
+    }
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
     if (currentOverlayFile && mediaUrl('video', currentOverlayFile) === data.url) {
@@ -218,6 +224,7 @@ function routePlayerMessage(conn, data) {
   else if (data.type === 'seerClosed') handleSeerClosed(conn);
   else if (data.type === 'foxChoice') handleFoxChoice(conn, data);
   else if (data.type === 'foxClosed') handleFoxClosed(conn);
+  else if (data.type === 'hunterShoot') handleHunterShot(conn, data);
   else if (data.type === 'mayorVote') handleMayorVote(conn, data);
   else if (data.type === 'mayorSuccessor') handleMayorSuccessor(conn, data);
 }
@@ -314,6 +321,11 @@ function updateMJRoleList() {
     const w = roles.filter((r) => r === 'Loup-Garou').length;
     const ok = w >= 1 && v > w;
     ratio.className = 'hint role-ratio ' + (TEST_MODE ? 'ok' : (ok ? 'ok' : (roles.length ? 'bad' : '')));
+    const distBtn = document.getElementById('distribute-btn');
+    if (distBtn) {
+      distBtn.disabled = !TEST_MODE && roles.length > 0 && !ok;
+      distBtn.title = distBtn.disabled ? 'Il faut plus de Villageois que de Loups-Garous (et au moins 1 Loup-Garou).' : '';
+    }
     ratio.textContent = TEST_MODE
       ? `🧪 Mode test : rôles uniques et ratio non contrôlés — Villageois : ${v} · Loups-Garous : ${w}`
       : roles.length
@@ -360,6 +372,7 @@ function distributeRolesNetwork() {
       player.conn.send({ type: 'assignRole', role: player.role });
       player.conn.send({ type: 'status', alive: true });
       player.conn.send({ type: 'lover', partner: null });
+      player.conn.send({ type: 'gameStarted', started: false });
     }
   });
   distributed = true;
@@ -387,8 +400,10 @@ function updateCallButtons() {
     const used = !!once && calledOnce.has(once);
     // rôle sans joueur en vie (mort, ou tous les Loups-Garous morts) : bouton grisé et inutilisable
     const noneAlive = distributed && !players.some((p) => p.alive && p.role === btn.dataset.role);
-    btn.disabled = used || noneAlive;
-    btn.classList.toggle('used', used || noneAlive);
+    // Sorcière sans aucune potion : on passe son tour, bouton grisé et bloqué
+    const noPotion = btn.dataset.role === 'Sorcière' && witchState.lifeUsed && witchState.deathUsed;
+    btn.disabled = used || noneAlive || noPotion;
+    btn.classList.toggle('used', used || noneAlive || noPotion);
   });
 
   if (!distributed) {
@@ -488,6 +503,7 @@ function togglePlayerStatus(index) {
     renderMJDashboard();
     announceDeaths(deaths);
     checkVictory('delay');
+    if (hunterWaiting()) setTimeout(() => { if (hunterWaiting() && !hunterState && !dayQueue) startHunterSequence(false); }, 8500);
   } else {
     setAlive(p, true);
     p.diedOfLove = false;
@@ -515,6 +531,22 @@ function announceDeaths(deaths) {
 // --- MÉDIAS ---
 function setProjectorVideoVolume(vol, duration = 600) {
   sendToProjector({ action: 'setVolume', volume: vol, duration });
+}
+
+// ---- Limite du niveau audio : aucun son ne dépasse MAX_VOLUME, et chaque son démarre en fondu (jamais « d'un seul coup ») ----
+const MAX_VOLUME = 0.8;          // plafond du volume (1 = maximum) pour tous les sons de la régie
+const FADE_IN_MS = 500;          // durée du fondu d'entrée
+
+function fadeInAudio(audio, ms = FADE_IN_MS) {
+  const steps = 10;
+  let i = 0;
+  audio.volume = 0;
+  const tick = () => {
+    i++;
+    audio.volume = Math.min(MAX_VOLUME, MAX_VOLUME * i / steps);
+    if (i < steps && !audio.ended) setTimeout(tick, ms / steps);
+  };
+  setTimeout(tick, ms / steps);
 }
 
 // loop = false : la vidéo est lue une seule fois, puis disparaît (ex. vidéo du Maire)
@@ -559,6 +591,8 @@ let dayQueue = null;   // annonces restantes avant le lever du jour (null = aucu
 
 function startDayScene() {
   dayQueue = null;
+  hunterState = null;
+  hunterThenDay = false;
   playScene(YT_ID_JOUR);
   openVillageVote();
   playAudioFile("Appel jour V2.mp3");
@@ -570,6 +604,8 @@ function nextDayStep() {
     const kind = dayQueue.shift();
     if (pendingNames(kind).length && announceKillEvent(kind, { auto: true })) return;   // on attend « eventEnded »
   }
+  // plus d'annonce : si le Chasseur est mort, il tire juste avant le lever du jour
+  if (hunterWaiting() && projectorOpen() && startHunterSequence(true)) return;
   startDayScene();
 }
 
@@ -580,7 +616,7 @@ function playDayPhase() {
   if (dayQueue) { startDayScene(); return; }              // 2e clic : on n'attend plus les annonces
   if (projectorOpen()) {
     const kinds = ['wolves', 'poison'].filter((k) => pendingNames(k).length);
-    if (kinds.length) {
+    if (kinds.length || hunterWaiting()) {
       dayQueue = kinds;
       showToast("☀️ Annonces de la nuit en cours : le jour se lèvera juste après (recliquez pour passer directement au jour).", 'info');
       nextDayStep();
@@ -597,6 +633,10 @@ function playCommand(cmd) {
     // Vidéo du Maire en plein écran (sans recadrage), sans diffuser l'audio Maire.mp3
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
     openMayorVote();                              // les joueurs votent depuis leur téléphone
+    if (!gameStarted) {                           // premier appel du Maire : la partie commence
+      gameStarted = true;
+      players.forEach((p) => sendTo(p, { type: 'gameStarted', started: true }));
+    }
   } else if (cmd === 'voter') {
     playAudioFile("Voter.mp3");
     if (!villageVote.open) openVillageVote();
@@ -613,13 +653,6 @@ function playRenardResponse(isPositive) {
 
   // sinon (pas de Renard, ou hors ligne) : enchaînement classique après la voix du MJ
   playAudioFile(isPositive ? "Appel Renard oui.mp3" : "Appel Renard non.mp3", usesPhone ? {} : { then: CLOSE_EYES_AUDIO });
-}
-
-function playSorcierePotions(type) {
-  if (!isCenteredVideo("Sorciere.mp4")) playRoleVideo("Sorciere.mp4");
-  if (type === 2) playAudioFile("Sorciere 2 potions.mp3");
-  else if (type === 'vie') playAudioFile("Sorciere potion de vie.mp3");
-  else if (type === 'mort') playAudioFile("Sorciere potion de mort.mp3");
 }
 
 function playDeaths(count) {
@@ -646,7 +679,6 @@ const FALLBACK_TEXTS = {
   "2 morts.mp3": "Cette nuit a été tragique, nous avons deux morts.",
   "3 morts.mp3": "Carnage au village, trois victimes sont à déplorer ce matin.",
   "Sorciere.mp3": "Sorcière, réveille-toi.",
-  "chasseur.mp3": "Chasseur, tu viens de mourir. Désigne ta dernière victime.",
   "Appel voleur V3.mp3": "Voleur, réveille-toi. Tu peux voler l'un des deux rôles qui te sont proposés.",
   "Appel Cupidon V2.mp3": "Cupidon, réveille-toi et désigne deux amoureux.",
   "Appel voyante V2.mp3": "Voyante, réveille-toi et désigne un joueur dont tu veux connaître le rôle.",
@@ -727,6 +759,7 @@ function playAudioFile(filename, opts = {}) {
     const url = mediaUrl('audio', candidates[i]);
     const audio = new Audio(url);
     currentAudio = audio;
+    fadeInAudio(audio);                       // niveau plafonné + fondu d'entrée
 
     audio.addEventListener('ended', () => {
       if (currentAudio === audio) onAudioFinished();
@@ -769,6 +802,8 @@ function fallbackSpeech(filename) {
 function stopAllMedia() {
   dayQueue = null;
   afterAudio = null;
+  hunterState = null;
+  hunterThenDay = false;
   sendToProjector({ action: 'stop' });
   overlayMode = null;
   currentOverlayFile = null;
@@ -809,17 +844,17 @@ function playRole(role) {
     voyante: { audio: "Appel voyante V2.mp3", video: "La voyante.mp4" },
     renard: { audio: "Appel renard V2.mp3", video: "Renard.mp4" },
     loups: { audio: "Appel Loups-Garous V2.mp3", video: "Loup-Garou.mp4" },
-    sorciere: { audio: "Sorciere.mp3", video: "Sorciere.mp4" },
-    chasseur: { audio: "chasseur.mp3", video: "Chasseur.mp4" }
+    sorciere: { audio: "Sorciere.mp3", video: "Sorciere.mp4" }
   };
 
   const item = roleFiles[role];
   if (!item) return;
   if (calledOnce.has(role)) return;
+  if (role === 'sorciere' && witchState.lifeUsed && witchState.deathUsed) return;   // plus de potion : on passe son tour
   currentTurnRole = TURN_ROLE_BY_CALL[role] || null;
 
   playAudioFile(role === 'sorciere' ? witchCallAudio() : item.audio);
-  if (item.video) playRoleVideo(item.video, role === 'chasseur' ? 'full' : 'center');
+  if (item.video) playRoleVideo(item.video, 'center');
 
   if (role === 'voleur' || role === 'cupidon') {
     calledOnce.add(role);
@@ -950,7 +985,7 @@ let night = newNight();
 let wolvesOpen = false;
 let villageVote = { open: false, votes: new Map() };
 let autoVoteResolve = true;   // élimination automatique quand tous les joueurs en vie ont voté
-let selection = { wolves: new Set(), poison: new Set(), vote: new Set(), mayor: new Set() };
+let selection = { wolves: new Set(), poison: new Set(), vote: new Set(), mayor: new Set(), hunter: new Set() };
 
 function newNight() {
   return { wolfVotes: new Map(), wolfFinal: new Set(), wolfVictim: null, saved: false, poisoned: null };
@@ -963,7 +998,13 @@ function resetGameAutomation() {
   night = newNight();
   wolvesOpen = false;
   villageVote = { open: false, votes: new Map() };
-  selection = { wolves: new Set(), poison: new Set(), vote: new Set(), mayor: new Set() };
+  selection = { wolves: new Set(), poison: new Set(), vote: new Set(), mayor: new Set(), hunter: new Set() };
+  hunterPending = null;
+  hunterChoice = null;
+  hunterState = null;
+  hunterThenDay = false;
+  hunterDone = false;
+  gameStarted = false;
   mayor = null;
   successionPending = null;
   mayorVote = { open: false, votes: new Map() };
@@ -1056,6 +1097,7 @@ function setAlive(p, alive) {
   p.alive = alive;
   sendTo(p, { type: 'status', alive });
   updateCallButtons();
+  if (alive && hunterPending === p.name) cancelHunter();
   if (alive && !allWolvesDead()) {
     victoryPending = false;
     if (gameOver) cancelVictory();
@@ -1070,18 +1112,20 @@ function killPlayers(names) {
     if (!p || !p.alive) return;
     setAlive(p, false);
     p.diedOfLove = false;
-    deaths.push({ name: p.name });
+    deaths.push({ name: p.name, role: p.role });
     if (p.inLove) {
       const partner = players.find((x) => x !== p && x.inLove);
       if (partner && partner.alive) {
         setAlive(partner, false);
         partner.diedOfLove = true;
-        deaths.push({ name: partner.name, love: true });
+        deaths.push({ name: partner.name, role: partner.role, love: true });
       }
     }
   });
   const mayorP = mayor && deaths.some((d) => d.name === mayor) ? findPlayer(mayor) : null;
   if (mayorP) startMayorSuccession(mayorP);
+  const hunterP = deaths.map((d) => findPlayer(d.name)).find((p) => p && p.role === 'Chasseur');
+  if (hunterP) startHunterTurn(hunterP);
   return deaths;
 }
 
@@ -1094,6 +1138,8 @@ function resyncPlayer(p) {
     sendTo(p, { type: 'lover', partner: partner ? partner.name : null });
   }
   if (successionPending === p.name) sendSuccessionTurn(p);
+  if (hunterPending === p.name) { if (hunterChoice) sendTo(p, { type: 'hunterDone' }); else sendHunterTurn(p); }
+  if (gameStarted) sendTo(p, { type: 'gameStarted', started: true });
   if (!p.alive) return;
   if (thiefOffers.has(p.name)) sendThiefTurn(p);
   if (cupidWaiting.has(p.name)) sendCupidTurn(p);
@@ -1218,7 +1264,8 @@ function sendWitchTurn(w, error) {
     noVictim: !witchState.lifeUsed && !night.wolfVictim,
     canSave,
     canPoison: !witchState.deathUsed,
-    targets: alivePlayers().map((p) => p.name),
+    // la victime des loups n'apparaît pas dans la liste du poison (elle ne peut être que sauvée)
+    targets: alivePlayers().filter((p) => p.name !== night.wolfVictim).map((p) => p.name),
     error: error || null
   });
 }
@@ -1262,8 +1309,147 @@ function handleWitchAction(conn, data) {
   }
   sendTo(w, { type: 'witchDone' });
   showToast(done.length ? `🧪 La Sorcière ${done.join(' et ')}.` : "🧪 La Sorcière ne fait rien cette nuit.", 'info');
+  updateCallButtons();
   renderMJDashboard();
   scheduleCloseEyes();
+}
+
+// -------------------------------- CHASSEUR --------------------------------
+// À sa mort, le Chasseur choisit sa dernière cible sur son téléphone (noms uniquement). Séquence à l'écran secondaire :
+//   1) vidéo du Chasseur (une seule lecture, son de la vidéo uniquement, aucun fichier audio) ;
+//   2) une fois sa cible choisie : vidéo « Mort tire » avec le nom du joueur visé.
+// La nuit, la séquence passe après les annonces des loups et de l'empoisonnement, juste avant le lever du jour.
+// Les scènes (Phases du Jeu) sont arrêtées pendant ces vidéos.
+let hunterPending = null;     // nom du Chasseur mort qui doit encore tirer
+let hunterChoice = null;      // nom du joueur choisi
+let hunterState = null;       // null | 'intro' | 'wait' | 'shot'
+let hunterThenDay = false;    // vrai : le jour se lève après le tir
+let hunterDone = false;       // le Chasseur n'a droit qu'à un tir par partie
+
+// vrai si le Chasseur est mort et n'a pas encore tiré
+function hunterWaiting() {
+  const h = hunterPending ? findPlayer(hunterPending) : null;
+  return !!h && !h.alive && !hunterDone;
+}
+
+function sendHunterTurn(h) {
+  sendTo(h, { type: 'hunterTurn', targets: alivePlayers().map((p) => p.name) });
+}
+
+function startHunterTurn(h) {
+  if (hunterDone || hunterPending) return;
+  if (!alivePlayers().length) { hunterDone = true; return; }
+  hunterPending = h.name;
+  hunterChoice = null;
+  sendHunterTurn(h);
+  showToast(`🏹 Le Chasseur (${h.name}) est mort : il choisit sa cible depuis son téléphone.`, 'info');
+}
+
+function handleHunterShot(conn, data) {
+  const h = senderOf(conn);
+  if (!h || h.alive || hunterPending !== h.name || hunterChoice) return;
+  const t = findPlayer(String(data.target || ''));
+  if (!t || !t.alive) { sendHunterTurn(h); return; }
+  hunterChoice = t.name;
+  sendTo(h, { type: 'hunterDone' });
+  showToast(`🏹 Le Chasseur (${h.name}) a choisi sa cible : ${t.name}.`, 'info');
+  if (hunterState === 'wait') playHunterShot();   // la vidéo du Chasseur est déjà terminée : on enchaîne
+  renderMJDashboard();
+}
+
+function silenceVoice() {
+  if (currentAudio) { currentAudio.pause(); currentAudio.currentTime = 0; }
+  window.speechSynthesis.cancel();
+  afterAudio = null;
+  overlayMode = null;
+  currentOverlayFile = null;
+}
+
+// Lance la séquence ; renvoie vrai si elle démarre
+function startHunterSequence(thenDay) {
+  if (!hunterWaiting() || hunterState) return false;
+  hunterThenDay = !!thenDay;
+  hunterState = 'intro';
+  if (!projectorOpen()) { hunterIntroEnded(); return true; }   // pas d'écran secondaire : on passe directement au tir
+  silenceVoice();
+  sendToProjector({ action: 'eventVideo', url: mediaUrl('video', 'Chasseur.mp4'), deaths: [], namesAt: 'none', stopScene: true });
+  showToast('🏹 Vidéo du Chasseur en cours…', 'info');
+  renderMJDashboard();
+  return true;
+}
+
+function hunterIntroEnded() {
+  if (hunterChoice) { playHunterShot(); return; }
+  hunterState = 'wait';
+  showToast("🏹 En attente du tir du Chasseur (il doit choisir sa cible sur son téléphone).", 'info');
+  renderMJDashboard();
+}
+
+function playHunterShot() {
+  const h = findPlayer(hunterPending);
+  const t = hunterChoice ? findPlayer(hunterChoice) : null;
+  if (!t || !t.alive) {                         // la cible est morte entre-temps : il en choisit une autre
+    hunterChoice = null;
+    hunterState = 'wait';
+    if (h) sendHunterTurn(h);
+    showToast("🏹 La cible du Chasseur n'est plus en vie : il doit en choisir une autre.", 'info');
+    renderMJDashboard();
+    return;
+  }
+  hunterState = 'shot';
+  selection.hunter = new Set([t.name]);
+  if (!projectorOpen()) {                       // sans écran secondaire : le tir est appliqué sans vidéo
+    killPlayers([t.name]);
+    selection.hunter = new Set();
+    showToast(`🏹 Le Chasseur tue ${t.name}.`, 'info');
+    checkVictory('event');
+    finishHunter();
+    return;
+  }
+  if (!announceKillEvent('hunter', { auto: true })) finishHunter();
+}
+
+function onHunterEventEnded() {
+  if (hunterState === 'intro') hunterIntroEnded();
+  else if (hunterState === 'shot') finishHunter();
+}
+
+function finishHunter() {
+  const thenDay = hunterThenDay;
+  hunterPending = null;
+  hunterChoice = null;
+  hunterState = null;
+  hunterThenDay = false;
+  hunterDone = true;
+  selection.hunter = new Set();
+  renderMJDashboard();
+  if (victoryPending && allWolvesDead()) { dayQueue = null; showVictory(); return; }
+  victoryPending = false;
+  if (thenDay && dayQueue) nextDayStep();     // le jour se lève après le tir
+}
+
+// Le MJ ressuscite le Chasseur : son tir est annulé
+function cancelHunter() {
+  const h = hunterPending ? findPlayer(hunterPending) : null;
+  const wasActive = !!hunterState;
+  hunterPending = null;
+  hunterChoice = null;
+  hunterState = null;
+  hunterThenDay = false;
+  selection.hunter = new Set();
+  if (h) sendTo(h, { type: 'hunterDone' });
+  if (wasActive && dayQueue) nextDayStep();
+}
+
+function hunterLine() {
+  if (hunterDone) return 'a tiré ✅';
+  if (!hunterPending) return 'en attente (il tire à sa mort)';
+  const state = hunterState === 'intro' ? ' — vidéo du Chasseur en cours'
+    : hunterState === 'wait' ? ' — ⏳ l\'écran attend son tir'
+    : hunterState === 'shot' ? ' — vidéo du tir en cours' : '';
+  const choice = hunterChoice ? `a choisi ${nameHtml(hunterChoice)}` : 'choisit sa cible…';
+  const start = !hunterState ? ' <button type="button" class="auto-btn" data-act="hunterStart">Lancer la vidéo du Chasseur</button>' : '';
+  return `${nameHtml(hunterPending)} (mort) ${choice}${state}${start}`;
 }
 
 // -------------------------------- RENARD --------------------------------
@@ -1289,8 +1475,12 @@ function sendFoxTurn(f) {
 
 function startFoxTurn() {
   const foxes = alivePlayers().filter((p) => p.role === 'Renard');
-  if (!foxes.length) return;                 // pas de Renard en vie : tout reste à l'oral
   foxQueuedAnswer = null;
+  if (!foxes.length || !foxes.some((f) => f.connected)) {   // pas de Renard sur téléphone : le MJ répond directement
+    renderMJDashboard();
+    openFoxModal();
+    return;
+  }
   foxes.forEach((f) => {
     foxChoices.delete(f.name);
     foxAnswered.delete(f.name);
@@ -1313,7 +1503,38 @@ function handleFoxChoice(conn, data) {
   sendTo(f, { type: 'foxAck', target: t.name });
   showToast(`🦊 Le Renard (${f.name}) a désigné ${t.name} : répondez Oui ou Non avec les boutons du Renard.`, 'info');
   if (foxQueuedAnswer !== null) deliverFoxAnswer(foxQueuedAnswer);   // le MJ avait déjà répondu
+  else openFoxModal();                                                  // sinon : la fenêtre de réponse s'ouvre
   renderMJDashboard();
+}
+
+
+// ---- Fenêtre « Réponse pour le Renard » (au milieu de l'écran du MJ) ----
+function openFoxModal() {
+  const modal = document.getElementById('fox-modal');
+  if (!modal) return;
+  const f = players.find((p) => p.role === 'Renard' && foxChoices.has(p.name) && !foxAnswered.has(p.name));
+  const text = document.getElementById('fox-modal-text');
+  const hint = document.getElementById('fox-modal-hint');
+  if (f) {
+    const target = foxChoices.get(f.name);
+    const t = findPlayer(target);
+    text.textContent = `Le Renard (${f.name}) a désigné ${target}. Y a-t-il un Loup-Garou ?`;
+    hint.textContent = t && t.role === 'Loup-Garou' ? 'Réponse attendue : OUI (Loup détecté)' : 'Réponse attendue : NON (aucun loup)';
+  } else {
+    text.textContent = "Le Renard répond à l'oral : y a-t-il un Loup-Garou dans le groupe désigné ?";
+    hint.textContent = '';
+  }
+  modal.style.display = 'flex';
+}
+
+function closeFoxModal() {
+  const modal = document.getElementById('fox-modal');
+  if (modal) modal.style.display = 'none';
+}
+
+function foxModalAnswer(isPositive) {
+  closeFoxModal();
+  playRenardResponse(isPositive);
 }
 
 // Envoie la réponse du MJ aux Renards qui ont désigné un joueur ; retient la réponse pour ceux qui n'ont pas encore choisi
@@ -1564,6 +1785,7 @@ function closeVillageVote(silent = false) {
 const EVENTS = {
   wolves: { video: 'Mort Loup.mp4',     namesAt: 'start', title: '🐺 Mort par les loups-garous', button: '🐺 Annoncer la mort (loups)' },
   poison: { video: 'Empoisoner.mp4',    namesAt: 'end',   title: '☠️ Mort par empoisonnement',   button: '☠️ Annoncer l\'empoisonnement' },
+  hunter: { video: 'Mort tire.mp4',       namesAt: 'end', stopScene: true,   title: '🏹 Tir du Chasseur',            button: '🏹 Annoncer le tir du Chasseur' },
   vote:   { video: 'Elimination 2.mp4', namesAt: 'end', stopScene: true,   title: '🗳️ Élimination par le village', button: '🗳️ Annoncer l\'élimination' }
 };
 
@@ -1593,7 +1815,7 @@ function announceKillEvent(kind, opts = {}) {
   overlayMode = null;
   currentOverlayFile = null;
 
-  sendToProjector({ action: 'eventVideo', url: mediaUrl('video', cfg.video), deaths, namesAt: cfg.namesAt, stopScene: !!cfg.stopScene });
+  sendToProjector({ action: 'eventVideo', url: mediaUrl('video', cfg.video), deaths, namesAt: cfg.namesAt, stopScene: !!cfg.stopScene, cause: kind });
   checkVictory('event');
   renderMJDashboard();
   showToast(deaths.map((d) => (d.love ? `💔 ${d.name} meurt de chagrin` : `💀 ${d.name}`)).join(' — '), 'info');
@@ -1625,7 +1847,7 @@ function foxLine() {
     const wolf = !!t && t.role === 'Loup-Garou';
     const answered = foxAnswered.has(f.name);
     return `a désigné ${nameHtml(foxChoices.get(f.name))} → réponse attendue : ${wolf ? '<strong>OUI</strong> (Loup détecté)' : '<strong>NON</strong> (aucun loup)'}`
-      + (answered ? ` — ✅ réponse donnée (${foxAnswered.get(f.name) ? 'Oui' : 'Non'})${foxAcked.has(f.name) ? ', vision refermée' : ''}` : ' — ⏳ en attente de votre réponse');
+      + (answered ? ` — ✅ réponse donnée (${foxAnswered.get(f.name) ? 'Oui' : 'Non'})${foxAcked.has(f.name) ? ', vision refermée' : ''}` : ' — ⏳ en attente de votre réponse <button type="button" class="auto-btn" data-act="foxModal">Répondre</button>');
   }
   return foxWaiting.size ? 'choix en cours…' : 'en attente de son appel';
 }
@@ -1663,6 +1885,7 @@ function renderAutomation() {
       <p><strong>💘 Amoureux :</strong> ${lovers.length === 2 ? lovers.map((l) => nameHtml(l.name)).join(' & ') + ' — si l\'un meurt, l\'autre meurt aussi.' : 'pas encore désignés (appel de Cupidon).'}</p>
       <p><strong>🐺 Loups :</strong> ${wolfStatus}</p>
       <p><strong>🧪 Sorcière :</strong> ${witchStatus}</p>
+      <p><strong>🏹 Chasseur :</strong> ${hunterLine()}</p>
       <p><strong>🦊 Renard :</strong> ${foxLine()}</p>
       <p><strong>🔮 Voyante :</strong> ${seerWaiting.size ? 'choix en cours…' : (seerLog ? `a observé <strong>${nameHtml(seerLog.target)}</strong> (${escapeHtml(seerLog.role)})` : 'en attente de son appel')}</p>
       <p><strong>👑 Maire :</strong> ${mayor ? nameHtml(mayor) + (successionPending ? ' (mort : successeur en cours de désignation)' : '') : 'pas encore élu'} — ${mayorStatus}</p>
@@ -1706,6 +1929,8 @@ document.addEventListener('click', (e) => {
   else if (btn.dataset.act === 'closeVote') closeVillageVote(false);
   else if (btn.dataset.act === 'openVote') openVillageVote();
   else if (btn.dataset.act === 'openMayor') openMayorVote();
+  else if (btn.dataset.act === 'foxModal') openFoxModal();
+  else if (btn.dataset.act === 'hunterStart') startHunterSequence(false);
   else if (btn.dataset.act === 'closeMayor') closeMayorVote(false);
   else if (btn.dataset.act === 'announceMayor') announceMayor();
   else if (btn.dataset.act === 'toggleAutoVote') { autoVoteResolve = !!e.target.checked; renderAutomation(); }

@@ -198,6 +198,9 @@
         case 'foxAnswer':
           send({ type: 'foxClosed' }, d + 600);
           break;
+        case 'hunterTurn':
+          if (msg.targets.length) send({ type: 'hunterShoot', target: rnd(msg.targets) }, d);
+          break;
         case 'seerTurn':
           if (msg.targets.length) send({ type: 'seerChoice', target: rnd(msg.targets) }, d);
           break;

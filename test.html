@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>🧪 Loup-Garou - Régie (MODE TEST)</title>
-  <link rel="stylesheet" href="style.css?v=40">
+  <link rel="stylesheet" href="style.css?v=41">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -138,7 +138,7 @@
             </div>
           </div>
 
-          <button class="btn btn-night btn-large" onclick="distributeRolesNetwork()">🔀 Distribuer les Rôles aux Joueurs</button>
+          <button class="btn btn-night btn-large" id="distribute-btn" onclick="distributeRolesNetwork()">🔀 Distribuer les Rôles aux Joueurs</button>
         </section>
 
 
@@ -208,10 +208,6 @@
               <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/images/Sorciere.png" alt="Sorcière">
               <span>La Sorcière</span>
             </button>
-            <button class="btn-role-card" data-role="Chasseur" onclick="playRole('chasseur')">
-              <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Chasseur.png" alt="Chasseur">
-              <span>Le Chasseur</span>
-            </button>
           </div>
         </section>
 
@@ -228,29 +224,6 @@
             </button>
             <button class="btn btn-day" onclick="playCommand('voter')">
               🗳️ Place au Vote !
-            </button>
-          </div>
-
-          <h3 style="font-size: 0.95rem; margin-top: 15px; color: #94a3b8;">Réponse pour le Renard :</h3>
-          <div class="button-grid">
-            <button class="btn btn-renard-oui" onclick="playRenardResponse(true)">
-              🦊 Oui (Loup détecté)
-            </button>
-            <button class="btn btn-danger" onclick="playRenardResponse(false)">
-              🦊 Non (Aucun loup)
-            </button>
-          </div>
-
-          <h3 style="font-size: 0.95rem; margin-top: 15px; color: #94a3b8;">Annonces Sorcière (Potions) :</h3>
-          <div class="button-grid">
-            <button class="btn btn-sorciere-orange" onclick="playSorcierePotions(2)">
-              🧪🧪 2 Potions
-            </button>
-            <button class="btn btn-sorciere-orange" onclick="playSorcierePotions('vie')">
-              🧪💚 Potion de Vie
-            </button>
-            <button class="btn btn-sorciere-orange" onclick="playSorcierePotions('mort')">
-              🧪💀 Potion de Mort
             </button>
           </div>
 
@@ -274,7 +247,22 @@
         </section>
 
   </main>
-  <p id="app-version" class="hint" style="text-align:center;">Version 40 · MODE TEST</p>
+
+  <!-- Fenêtre de réponse pour le Renard (au milieu de l'écran du MJ) -->
+  <div id="fox-modal" class="modal-backdrop" style="display: none;" role="dialog" aria-modal="true" aria-labelledby="fox-modal-title">
+    <div class="modal-box">
+      <h2 id="fox-modal-title" class="titre-wolf">🦊 Réponse pour le Renard</h2>
+      <p id="fox-modal-text" class="modal-text"></p>
+      <p id="fox-modal-hint" class="modal-hint"></p>
+      <div class="modal-actions">
+        <button class="btn btn-renard-oui" onclick="foxModalAnswer(true)">🦊 Oui (Loup détecté)</button>
+        <button class="btn btn-danger" onclick="foxModalAnswer(false)">🦊 Non (Aucun loup)</button>
+      </div>
+      <button class="modal-close" onclick="closeFoxModal()">Fermer (je répondrai plus tard)</button>
+    </div>
+  </div>
+
+  <p id="app-version" class="hint" style="text-align:center;">Version 41 · MODE TEST</p>
 
   <script>
     (function () {
@@ -326,7 +314,7 @@
     });
   </script>
   <script>window.LG_TEST_MODE = true;</script>
-  <script src="script.js?v=40"></script>
-  <script src="test-tools.js?v=40"></script>
+  <script src="script.js?v=41"></script>
+  <script src="test-tools.js?v=41"></script>
 </body>
 </html>
