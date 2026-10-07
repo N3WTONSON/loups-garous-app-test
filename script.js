@@ -1,4 +1,4 @@
-const VERSION_APP = "58";
+const VERSION_APP = "59";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -143,7 +143,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=58', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=59', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -390,6 +390,14 @@ function showAllSeenModal() {
   document.body.appendChild(m);
 }
 
+// Tant que tous les joueurs n'ont pas pris connaissance de leur rôle, la partie ne peut pas commencer
+function startBlocked() {
+  if (!distributed || allSeenShown) return false;
+  const waiting = players.filter((p) => !p.seenRole).map((p) => p.name);
+  showToast(`⏳ La partie ne peut pas commencer : ${waiting.join(', ')} n'${waiting.length > 1 ? 'ont' : 'a'} pas encore pris connaissance de ${waiting.length > 1 ? 'leur rôle' : 'son rôle'}.`, 'info');
+  return true;
+}
+
 function checkAllSeen() {
   if (!distributed || gameStarted || allSeenShown || !players.length) return;
   if (!players.every((p) => p.seenRole)) return;
@@ -402,6 +410,8 @@ function handleRoleSeen(conn) {
   if (!p || !distributed) return;
   p.seenRole = true;
   checkAllSeen();
+  updateCallButtons();
+  renderMJDashboard();
 }
 
 function distributeRolesNetwork() {
@@ -461,7 +471,7 @@ function distributeRolesNetwork() {
 function updateCallButtons() {
   const mayorBtn = document.getElementById('mayor-call-btn');
   if (mayorBtn) {
-    const used = mayorCalled;
+    const used = mayorCalled || (distributed && !allSeenShown);
     mayorBtn.disabled = used;
     mayorBtn.classList.toggle('used', used);
   }
@@ -830,6 +840,7 @@ function setWaitMusicPaused(paused) {
 }
 
 function presentCharacters() {
+  if (startBlocked()) return;
   stopLobbyMusic();
   if (currentAudio) {
     currentAudio.pause();
@@ -840,6 +851,7 @@ function presentCharacters() {
 }
 
 function playNightPhase() {
+  if (startBlocked()) return;
   stopLobbyMusic();
   nightDeaths = 0;
   currentTurnRole = null;
@@ -893,6 +905,7 @@ function nextDayStep() {
 // « Le jour se lève » : s'il y a eu des morts par les loups, puis un empoisonnement par la Sorcière,
 // leurs annonces (vidéo + noms) sont lues AVANT le lever du jour.
 function playDayPhase() {
+  if (startBlocked()) return;
   stopLobbyMusic();
   currentTurnRole = null;
   if (dayQueue) { startDayScene(); return; }              // 2e clic : on n'attend plus les annonces
@@ -913,6 +926,7 @@ function playCommand(cmd) {
     playAudioFile("Fermer les yeux.mp3");
   } else if (cmd === 'voter_maire') {
     // Vidéo du Maire en plein écran (sans recadrage), sans diffuser l'audio Maire.mp3
+    if (startBlocked()) return;
     if (mayorCalled) { showToast('👑 Le Maire a déjà été appelé : le bouton est bloqué.', 'info'); return; }
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
     stopLobbyMusic();
@@ -1137,6 +1151,7 @@ function witchCallAudio() {
 }
 
 function playRole(role) {
+  if (startBlocked()) return;
   const roleFiles = {
     voleur: { audio: "Appel voleur V3.mp3", video: "Voleur.mp4" },
     cupidon: { audio: "Appel Cupidon V2.mp3", video: "Cupidon.mp4" },
