@@ -505,7 +505,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 60');
+    console.info('Projecteur - version 61');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -684,7 +684,7 @@
     const VERSO_URL = IMG_BASE + 'joueur/images/Verso%201.png';
     const ROLE_IMG = {
       'Loup-Garou': 'Loup-Garou.png', 'Villageois': 'Villageois.png', 'Voyante': 'Voyante 1.png', 'Sorcière': 'Sorciere.png',
-      'Chasseur': 'Chasseur.png', 'Cupidon': 'Cupidon.png', 'Voleur': 'Voleur 1.png', 'Renard': 'Renard.jpg', 'Petite Fille': 'Petite Fille.png'
+      'Chasseur': 'Chasseur.png', 'Cupidon': 'Cupidon.png', 'Voleur': 'Voleur 1.png', 'Maire': 'Maire.png', 'Renard': 'Renard.jpg', 'Petite Fille': 'Petite Fille.png'
     };
     // comment le joueur est mort (affiché sous son nom)
     const CAUSE_TEXT = {
@@ -836,7 +836,10 @@
       ov.style.display = 'flex';
     }
     function hideDayVote() { document.getElementById('dayvote-overlay').style.display = 'none'; }
-    function showDayVote() {
+    function showDayVote(mode) {
+      const night = mode === 'night';
+      document.querySelector('#dayvote-overlay .dv-title').textContent = night ? 'Le village se repose' : 'Le village débat';
+      document.querySelector('#dayvote-overlay .dv-sub').textContent = night ? '🌙 En attente de la prochaine nuit…' : '🗳️ En attente du vote du village…';
       const ti = document.getElementById('dv-title-img');
       if (!ti.getAttribute('src')) { ti.onerror = () => ti.classList.add('missing'); ti.src = IMG_BASE + 'images/Titre.png?v=2'; }
       if (ytReady) ytPlayer.stopVideo();
@@ -905,6 +908,7 @@
       hideDayVote();
       endEvent();
       hideHunterWait();
+      { const mo = document.getElementById('mayor-overlay'); clearTimeout(mayorTimer); mo.style.display = 'none'; hideCandidates(); }   // rien par-dessus la vidéo
       const sfx = data.sfx || {};
       hideOverlay();
       eventActive = true;
@@ -1004,7 +1008,7 @@
           break;
 
         case 'dayVote':
-          if (data.show) showDayVote(); else hideDayVote();
+          if (data.show) showDayVote(data.mode); else hideDayVote();
           break;
 
         case 'hunterWaiting':

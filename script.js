@@ -1,4 +1,4 @@
-const VERSION_APP = "60";
+const VERSION_APP = "61";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -146,7 +146,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=60', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=61', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -165,7 +165,7 @@ window.addEventListener('message', (event) => {
     else {
       victoryPending = false;
       if (dayQueue) nextDayStep();
-      else if (successionPending && gateSuccession(() => { if (hunterWaiting()) startHunterSequence(false); })) { /* passation du Maire d'abord */ }
+      else if (successionPending && gateSuccession(() => { if (hunterWaiting()) startHunterSequence(false); else resumePauseMusic(); })) { /* passation du Maire d'abord */ }
       else if (hunterWaiting()) startHunterSequence(false);   // mort pendant la journée (vote) : le Chasseur tire ensuite
     }
   } else if (data.action === 'overlayEnded') {
@@ -675,6 +675,7 @@ function isCenteredVideo(fileName) {
 
 function resumePauseMusic() {
   if (!dayPause || gameOver) return;
+  if (!hunterState && !successionPending && projectorOpen()) sendToProjector({ action: 'dayVote', show: true, mode: 'night' });   // tout est annoncé : en attente de la nuit
   waitMusicWanted = true;
   startWaitMusic();
 }
@@ -1439,6 +1440,7 @@ function showVictory() {
   closeMayorVote(true);
   stopMusic();
   const shown = sendToProjector({ action: 'victory', winner });
+  if (shown) playApplause();
   players.forEach((p) => sendTo(p, { type: 'gameOver', winner }));
   showToast((winner === 'wolves' ? '🐺 Les Loups-Garous ont éliminé le camp des villageois : victoire des Loups-Garous !' : '🏆 Tous les Loups-Garous sont morts : victoire du village !') + (shown ? '' : ' (écran secondaire fermé)'), 'info');
   renderMJDashboard();
@@ -1764,11 +1766,19 @@ function startHunterSequence(thenDay) {
   hunterThenDay = !!thenDay;
   hunterState = 'intro';
   if (!projectorOpen()) { hunterIntroEnded(); return true; }   // pas d'écran secondaire : on passe directement au tir
-  silenceVoice();
-  waitMusicWanted = false;
-  stopWaitMusic();   // la vidéo du Chasseur est jouée sans musique
-  sendToProjector({ action: 'eventVideo', url: mediaUrl('video', 'Chasseur.mp4'), deaths: [], namesAt: 'none', stopScene: true });
-  showToast('🏹 Vidéo du Chasseur en cours…', 'info');
+  const launch = () => {
+    if (hunterState !== 'intro') return;
+    silenceVoice();
+    waitMusicWanted = false;
+    stopWaitMusic();   // la vidéo du Chasseur est jouée sans musique
+    sendToProjector({ action: 'eventVideo', url: mediaUrl('video', 'Chasseur.mp4'), deaths: [], namesAt: 'none', stopScene: true });
+    showToast('🏹 Vidéo du Chasseur en cours…', 'info');
+    renderMJDashboard();
+  };
+  // la vidéo du Chasseur attend la fin des autres annonces (ex. nouveau Maire) : rien ne s'affiche par-dessus
+  const wait = mayorAnnounceUntil - Date.now();
+  if (wait > 0) { showToast('🏹 La vidéo du Chasseur démarre après l\'annonce du Maire…', 'info'); setTimeout(launch, wait + 500); }
+  else launch();
   renderMJDashboard();
   return true;
 }
@@ -2339,14 +2349,14 @@ function gateSuccession(next) {
   const dead = successionPending ? findPlayer(successionPending) : null;
   if (!dead || !dead.connected || !projectorOpen()) return false;   // injoignable : on ne bloque pas la partie
   afterSuccession = next;
-  sendToProjector({ action: 'hunterWaiting', name: dead.name, role: dead.role, sub: '👑 Le Maire est mort : il doit transmettre son rôle de Maire à un joueur encore en vie' });
+  sendToProjector({ action: 'hunterWaiting', name: dead.name, role: 'Maire', sub: '👑 Le Maire est mort : il doit transmettre son rôle de Maire à un joueur encore en vie' });
   return true;
 }
 function releaseSuccession() {
   sendToProjector({ action: 'hunterWaiting', hide: true });
   const next = afterSuccession;
   afterSuccession = null;
-  if (next) setTimeout(next, 6500);   // laisse l'annonce du nouveau Maire se terminer
+  if (next) setTimeout(next, MAYOR_ANNOUNCE_MS + 800);   // laisse l'annonce du nouveau Maire se terminer
 }
 
 function cancelMayorSuccession() {
@@ -2366,11 +2376,15 @@ function handleMayorSuccessor(conn, data) {
   selection.mayor = new Set();
   sendTo(dead, { type: 'mayorSuccessionDone' });
   const shown = sendToProjector({ action: 'announceMayor', name: t.name });
+  mayorAnnounceUntil = Date.now() + MAYOR_ANNOUNCE_MS;
   if (shown) playApplause();
   releaseSuccession();
   showToast(`👑 ${dead.name} désigne ${t.name} comme nouveau Maire${shown ? '' : ' (écran secondaire fermé)'}.`, 'info');
   renderMJDashboard();
 }
+
+const MAYOR_ANNOUNCE_MS = 9000;   // durée d'affichage de l'annonce du Maire sur l'écran secondaire
+let mayorAnnounceUntil = 0;
 
 // Applaudissements lus à l'annonce du Maire (son indépendant des voix du MJ)
 function playApplause() {
@@ -2390,6 +2404,7 @@ function announceMayor() {
   selection.mayor = new Set();
   if (successionPending) cancelMayorSuccession();   // un Maire est désigné : plus de succession en attente
   const shown = sendToProjector({ action: 'announceMayor', name });
+  mayorAnnounceUntil = Date.now() + MAYOR_ANNOUNCE_MS;
   if (shown) playApplause();
   showToast(shown ? `👑 ${name} est élu Maire du village !` : `👑 ${name} est élu Maire (écran secondaire fermé : rien n'est affiché).`, 'info');
   renderMJDashboard();
