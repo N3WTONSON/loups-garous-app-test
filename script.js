@@ -1,4 +1,4 @@
-const VERSION_APP = "44";
+const VERSION_APP = "46";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 
 // Mode test (page test.html uniquement) : rôles uniques et ratio non contrôlés
@@ -47,6 +47,13 @@ const ASSETS = {
     "Sorciere potion de vie.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%20potion%20de%20vie.mp3",
     "Sorciere potion de mort.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%20potion%20de%20mort.mp3",
   },
+  music: {
+    "Feast Circle 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Feast%20Circle%201.mp3",
+    "Dusk in the Tavern 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Dusk%20in%20the%20Tavern%201.mp3",
+    "Dusk in the Tavern 2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Dusk%20in%20the%20Tavern%202.mp3",
+    "Tavern at Dusk 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Tavern%20at%20Dusk%201.mp3",
+    "Tavern at Dusk 2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Tavern%20at%20Dusk%202.mp3",
+  },
   video: {
     "Mort Loup.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Mort%20Loup.mp4",
     "Elimination 2.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Elimination%202.mp4",
@@ -63,7 +70,7 @@ const ASSETS = {
   }
 };
 
-const ASSET_FOLDERS = { images: "images", audio: "mj/audio", video: "mj/video" };
+const ASSET_FOLDERS = { images: "images", audio: "mj/audio", video: "mj/video", music: "mj/musique" };
 
 function assetUrl(path) {
   return SUPABASE_BASE + "/" + path.split("/").map(encodeURIComponent).join("/");
@@ -133,7 +140,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=44', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=46', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -155,6 +162,7 @@ window.addEventListener('message', (event) => {
     }
   } else if (data.action === 'overlayEnded') {
     // une vidéo lue une seule fois vient de se terminer : l'incrustation n'est plus à l'écran
+    if (mayorVote.open && mayorVote.phase !== 'speech' && data.url === mediaUrl('video', 'Maire.mp4')) startWaitMusic();
     if (currentOverlayFile && mediaUrl('video', currentOverlayFile) === data.url) {
       overlayMode = null;
       currentOverlayFile = null;
@@ -173,6 +181,7 @@ function initHost(attempt = 0) {
 
   peer.on('open', () => {
     hostOpened = true;
+    startLobbyMusic();                // musique du lobby, en boucle jusqu'au début de la partie
     document.getElementById('host-ui').style.display = 'block';
     document.getElementById('room-code-display').innerText = roomCode;
     document.getElementById('mj-setup-card').style.display = 'block';
@@ -593,7 +602,148 @@ function playScene(videoId, loop = true) {
   }
 }
 
+
+// ---------------------------- MUSIQUE D'AMBIANCE ----------------------------
+// - Lobby (avant le début de la partie) : « Feast Circle 1 » en boucle.
+// - Temps d'attente (élection du Maire) : les autres morceaux, au hasard, sans jamais rejouer le même deux fois de suite, à 50 %.
+const MUSIC_LOBBY = "Feast Circle 1.mp3";
+const MUSIC_WAIT_TRACKS = ["Dusk in the Tavern 1.mp3", "Dusk in the Tavern 2.mp3", "Tavern at Dusk 1.mp3", "Tavern at Dusk 2.mp3"];
+const MUSIC_WAIT_VOLUME = 0.5;
+const MUSIC_DUCK_VOLUME = 0.12;   // niveau pendant que le MJ parle (voix enregistrées)
+
+let musicAudio = null;
+let musicMode = null;        // 'lobby' | 'wait' | null
+let musicDuck = false;
+let musicPaused = false;
+let musicLastTrack = null;
+let musicToken = 0;
+let musicRetryBound = false;
+let mayorMusicTimer = null;
+
+function musicLevel() {
+  const base = musicMode === 'lobby' ? MAX_VOLUME : MUSIC_WAIT_VOLUME;
+  return musicDuck ? Math.min(base, MUSIC_DUCK_VOLUME) : base;
+}
+
+function setMusicVolume(ms = 300) {
+  const a = musicAudio;
+  if (!a) return;
+  const from = a.volume, to = musicLevel(), steps = 8;
+  let i = 0;
+  (function tick() {
+    if (musicAudio !== a) return;
+    i++;
+    a.volume = Math.max(0, Math.min(1, from + (to - from) * i / steps));
+    if (i < steps) setTimeout(tick, ms / steps);
+  })();
+}
+
+function duckMusic(on) {
+  if (musicDuck === on) return;
+  musicDuck = on;
+  setMusicVolume(on ? 250 : 700);
+}
+
+function bindMusicRetry() {
+  if (musicRetryBound) return;
+  musicRetryBound = true;
+  document.addEventListener('click', () => {      // lecture refusée (pas encore de clic) : on réessaie au premier clic
+    musicRetryBound = false;
+    if (musicAudio && musicAudio.paused && !musicPaused && musicMode) musicAudio.play().catch(() => {});
+  }, { once: true });
+}
+
+function launchMusic(name, loop, onEnd) {
+  const token = musicToken;
+  const audio = new Audio(mediaUrl('music', name));
+  audio.loop = loop;
+  audio.volume = 0;
+  musicAudio = audio;
+  if (onEnd) audio.addEventListener('ended', () => { if (token === musicToken && musicAudio === audio) onEnd(); });
+  audio.addEventListener('error', () => {
+    if (token !== musicToken || musicAudio !== audio) return;
+    console.warn('Musique introuvable :', audio.src);
+    if (onEnd) onEnd(true);
+  });
+  if (!musicPaused) {
+    audio.play().then(() => setMusicVolume(1500)).catch((err) => {
+      if (err && err.name === 'NotAllowedError') bindMusicRetry();
+    });
+  }
+}
+
+function stopMusic(ms = 800) {
+  musicToken++;
+  musicMode = null;
+  musicPaused = false;
+  clearTimeout(mayorMusicTimer);
+  const a = musicAudio;
+  musicAudio = null;
+  if (!a) return;
+  const from = a.volume, steps = 8;
+  let i = 0;
+  (function tick() {
+    i++;
+    a.volume = Math.max(0, from * (1 - i / steps));
+    if (i < steps) setTimeout(tick, ms / steps);
+    else a.pause();
+  })();
+}
+
+function startLobbyMusic() {
+  if (musicMode === 'lobby') return;
+  stopMusic(300);
+  musicMode = 'lobby';
+  launchMusic(MUSIC_LOBBY, true, null);
+}
+
+function stopLobbyMusic() { if (musicMode === 'lobby') stopMusic(); }
+
+function pickWaitTrack() {
+  const pool = MUSIC_WAIT_TRACKS.filter((t) => t !== musicLastTrack);
+  const list = pool.length ? pool : MUSIC_WAIT_TRACKS;
+  return list[Math.floor(Math.random() * list.length)];
+}
+
+function playNextWaitTrack(failed) {
+  if (musicMode !== 'wait') return;
+  const track = pickWaitTrack();
+  musicLastTrack = track;
+  if (failed) { musicFailCount = (musicFailCount || 0) + 1; if (musicFailCount > MUSIC_WAIT_TRACKS.length * 2) return; }
+  launchMusic(track, false, playNextWaitTrack);
+}
+let musicFailCount = 0;
+
+function startWaitMusic() {
+  if (musicMode === 'wait') return;
+  stopMusic(500);
+  musicMode = 'wait';
+  musicFailCount = 0;
+  playNextWaitTrack(false);
+}
+
+function stopWaitMusic() { if (musicMode === 'wait') stopMusic(); }
+
+function setWaitMusicPaused(paused) {
+  if (musicMode !== 'wait') return;
+  musicPaused = paused;
+  if (!musicAudio) return;
+  if (paused) musicAudio.pause();
+  else musicAudio.play().then(() => setMusicVolume(800)).catch(() => bindMusicRetry());
+}
+
+function presentCharacters() {
+  stopLobbyMusic();
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+  }
+  window.speechSynthesis.cancel();
+  playScene(YT_ID_PRESENTATION, false);
+}
+
 function playNightPhase() {
+  stopLobbyMusic();
   currentTurnRole = null;
   closeVillageVote(true);
   playScene(YT_ID_NUIT);
@@ -630,6 +780,7 @@ function nextDayStep() {
 // « Le jour se lève » : s'il y a eu des morts par les loups, puis un empoisonnement par la Sorcière,
 // leurs annonces (vidéo + noms) sont lues AVANT le lever du jour.
 function playDayPhase() {
+  stopLobbyMusic();
   currentTurnRole = null;
   if (dayQueue) { startDayScene(); return; }              // 2e clic : on n'attend plus les annonces
   if (projectorOpen()) {
@@ -650,6 +801,7 @@ function playCommand(cmd) {
   } else if (cmd === 'voter_maire') {
     // Vidéo du Maire en plein écran (sans recadrage), sans diffuser l'audio Maire.mp3
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
+    stopLobbyMusic();
     openMayorVote();                              // les joueurs votent depuis leur téléphone
     if (!gameStarted) {                           // premier appel du Maire : la partie commence
       gameStarted = true;
@@ -707,6 +859,7 @@ const FALLBACK_TEXTS = {
 };
 
 function onAudioFinished() {
+  if (!afterAudio) duckMusic(false);
   setProjectorVideoVolume(1.0, 800);
   if (overlayMode === 'corner') stopRoleVideo();
   const next = afterAudio;
@@ -770,6 +923,7 @@ function playAudioFile(filename, opts = {}) {
     currentAudio.currentTime = 0;
   }
   setProjectorVideoVolume(0.25, 400);
+  duckMusic(true);
 
   const candidates = audioCandidates(filename);
 
@@ -832,6 +986,8 @@ function stopAllMedia() {
   }
   window.speechSynthesis.cancel();
   setProjectorVideoVolume(1.0, 300);
+  musicDuck = false;
+  stopMusic();
 }
 
 function togglePauseAllMedia() {
@@ -1661,6 +1817,10 @@ function openMayorVote() {
   sendToProjector({ action: 'mayorCandidates', hide: true });
   players.forEach((p) => sendTo(p, { type: 'voteClose' }));   // le vote du village (s'il est ouvert) est masqué pendant l'élection
   alivePlayers().forEach(sendMayorTurn);
+  // musique d'attente : après la vidéo du Maire (tout de suite si l'écran secondaire est fermé)
+  clearTimeout(mayorMusicTimer);
+  if (!projectorOpen()) startWaitMusic();
+  else mayorMusicTimer = setTimeout(() => { if (mayorVote.open && mayorVote.phase !== 'speech') startWaitMusic(); }, 60000);
   renderMJDashboard();
 }
 
@@ -1695,6 +1855,8 @@ function closeCandidacy() {
   mayorVote.speaker = null;
   mayorVote.spoke = new Set();
   const shown = pushCandidatesToProjector();
+  clearTimeout(mayorMusicTimer);
+  setWaitMusicPaused(true);   // silence pendant les discours
   alivePlayers().forEach(sendMayorTurn);
   showToast(`👑 ${names.length} candidat(s) : ${names.join(', ')}. Donnez la parole à chacun, puis passez au vote.${shown ? '' : ' (écran secondaire fermé)'}`, 'info');
   renderMJDashboard();
@@ -1720,6 +1882,7 @@ function startMayorBallot() {
   if (!mayorVote.open || mayorVote.phase !== 'speech') return;
   mayorVote.phase = 'vote';
   mayorVote.speaker = null;
+  if (musicMode === 'wait') setWaitMusicPaused(false); else startWaitMusic();
   pushCandidatesToProjector();
   alivePlayers().forEach(sendMayorTurn);
   renderMJDashboard();
@@ -1744,6 +1907,7 @@ function handleMayorVote(conn, data) {
 function closeMayorVote(silent = false) {
   if (!mayorVote.open) return;
   mayorVote.open = false;
+  stopWaitMusic();
   sendToProjector({ action: 'mayorCandidates', hide: true });
   players.forEach((p) => sendTo(p, { type: 'mayorClose' }));
   if (villageVote.open) alivePlayers().forEach(sendVoteTurn);   // le vote du village réapparaît s'il était ouvert

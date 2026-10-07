@@ -206,6 +206,7 @@
     document.getElementById('join-url').textContent = '🧪 Salon simulé : aucun réseau nécessaire pour les téléphones de test.';
     document.getElementById('mj-setup-card').style.display = 'block';
     updateMJRoleList();
+    if (typeof startLobbyMusic === 'function') startLobbyMusic();
     const input = document.getElementById('test-name');
     if (input) input.addEventListener('keydown', (e) => { if (e.key === 'Enter') window.testAddPlayer(); });
   }

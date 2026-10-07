@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
-  <title>🧪 Loup-Garou - Régie (MODE TEST)</title>
-  <link rel="stylesheet" href="style.css?v=44">
+  <title>Loup-Garou - Régie Maître du Jeu</title>
+  <link rel="stylesheet" href="style.css?v=46">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -14,7 +14,6 @@
 <header>
   <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
   <p>Panneau du Maître du Jeu & Contrôle Ambiance</p>
-  <p class="test-banner">🧪 MODE TEST — rôles et ratio libres · téléphones simulés</p>
   
   <div style="text-align: center; margin: 15px auto; max-width: 500px;">
     <button class="btn btn-projector" onclick="openProjectorWindow()" style="margin: 0 auto 15px auto; max-width: 300px;">
@@ -44,29 +43,6 @@
 
       <!-- COLONNE GAUCHE : Création, Distribution, Phases de Jeu & Récapitulatif -->
       <div class="column-left">
-
-        <!-- MODE TEST : joueurs ajoutés à la main + téléphones simulés -->
-        <section class="card test-card" id="test-card">
-          <h2 class="titre-wolf">🧪 Mode test</h2>
-          <p class="hint">Rôles uniques et ratio non contrôlés. Chaque joueur ajouté ouvre un téléphone simulé dans une fenêtre séparée, sans réseau.</p>
-
-          <div class="test-row">
-            <input type="text" id="test-name" placeholder="Nom du joueur à ajouter" maxlength="20" autocomplete="off">
-            <button class="btn btn-night" onclick="testAddPlayer()">➕ Ajouter</button>
-          </div>
-          <div class="test-row">
-            <input type="number" id="test-count" value="6" min="1" max="16">
-            <button class="btn btn-night" onclick="testAddMany()">➕ Ajouter ce nombre de joueurs</button>
-          </div>
-          <div class="test-row">
-            <button class="btn btn-effect" onclick="testOpenPhones()">📱 Fenêtre des téléphones</button>
-            <button class="btn btn-effect" id="test-auto-btn" onclick="testToggleAuto()">🤖 Tout en auto : NON</button>
-          </div>
-          <div class="test-row">
-            <button class="btn btn-day" onclick="testFillRoles()">🎲 Remplir les rôles automatiquement</button>
-          </div>
-          <p class="hint">Pour recommencer une partie de zéro : rechargez cette page (Ctrl+F5).</p>
-        </section>
 
         <!-- Écran de Création du Salon -->
         <section class="card" id="connection-card">
@@ -138,6 +114,10 @@
             </div>
           </div>
 
+          <div class="button-grid" style="margin-bottom: 10px;">
+            <button class="btn btn-day" onclick="autoFillRoles(false)">🎲 Remplir les rôles automatiquement</button>
+            <button class="btn btn-day" onclick="autoFillRoles(true)">⚡ Remplir et distribuer</button>
+          </div>
           <button class="btn btn-night btn-large" id="distribute-btn" onclick="distributeRolesNetwork()">🔀 Distribuer les Rôles aux Joueurs</button>
         </section>
 
@@ -262,7 +242,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 44 · MODE TEST</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 46</p>
 
   <script>
     (function () {
@@ -293,28 +273,6 @@
       });
     })();
   </script>
-  <script>
-    // Vérifie que tous les fichiers nécessaires au mode test sont bien sur le site
-    window.addEventListener('load', async () => {
-      const need = ['script.js', 'player.js', 'test-tools.js', 'sim-peer.js', 'phones.html', 'joueur.html', 'style.css'];
-      const missing = [];
-      await Promise.all(need.map(async (f) => {
-        try {
-          const r = await fetch(f, { method: 'HEAD', cache: 'no-store' });
-          if (!r.ok) missing.push(f);
-        } catch (e) { missing.push(f); }
-      }));
-      const card = document.getElementById('test-card');
-      if (missing.length && card) {
-        const p = document.createElement('p');
-        p.className = 'error-message';
-        p.textContent = '⚠️ Fichiers introuvables sur le site : ' + missing.join(', ') + ' — uploadez-les à la racine du dépôt (à côté de test.html).';
-        card.insertBefore(p, card.children[1]);
-      }
-    });
-  </script>
-  <script>window.LG_TEST_MODE = true;</script>
-  <script src="script.js?v=44"></script>
-  <script src="test-tools.js?v=44"></script>
+  <script src="script.js?v=46"></script>
 </body>
 </html>

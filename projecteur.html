@@ -93,9 +93,9 @@
 
     .projector-title {
       font-family: 'Wolf Brothers', sans-serif;
-      font-size: 3rem;
+      font-size: 10vh;
       color: #f4dcdc;
-      margin-bottom: 30px;
+      margin-bottom: 4vh;
       text-shadow: 0 2px 8px rgba(0,0,0,0.9), 0 0 16px rgba(185, 28, 28, 0.5);
       letter-spacing: 2px;
       text-align: center;
@@ -103,10 +103,11 @@
 
     .lobby-container {
       display: flex;
-      gap: 50px;
+      gap: 3vw;
       align-items: stretch;
-      max-width: 1100px;
-      width: 90%;
+      justify-content: center;
+      max-width: 96vw;
+      width: 96vw;
     }
 
     /* CARTE DU THÈME GRIFFURE & SANG */
@@ -139,7 +140,8 @@
     }
 
     .qr-box {
-      flex: 1;
+      flex: 0 0 auto;           /* le cadre épouse la taille du QR code et du code */
+      width: fit-content;
       display: flex;
       flex-direction: column;
       align-items: center;
@@ -149,35 +151,37 @@
 
     .qr-code-img {
       background: #ffffff;
-      padding: 14px;
+      padding: 1.6vh;
       border-radius: 12px;
       box-shadow: 0 4px 20px rgba(0,0,0,0.8);
-      margin-bottom: 15px;
+      margin-bottom: 2vh;
+      line-height: 0;
     }
 
     .qr-box p {
       margin: 6px 0;
       color: #cbd5e1;
-      font-size: 1.1rem;
+      font-size: 3.2vh;
     }
 
     .room-code-badge {
       font-family: 'Wolf Brothers', sans-serif;
-      font-size: 2.2rem;
+      font-size: 7vh;
       color: #ef4444;
       letter-spacing: 3px;
     }
 
     .players-box {
-      flex: 1.2;
+      flex: 1;
+      min-width: 0;
       display: flex;
       flex-direction: column;
     }
 
     .players-box h3 {
       font-family: 'Wolf Brothers', sans-serif;
-      font-size: 1.8rem;
-      margin: 0 0 15px 0;
+      font-size: 6vh;
+      margin: 0 0 2.5vh 0;
       color: #f4dcdc;
       letter-spacing: 1px;
       border-bottom: 2px solid #7f1d1d;
@@ -189,9 +193,9 @@
       margin: 0;
       padding: 0;
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-      gap: 12px;
-      max-height: 280px;
+      grid-template-columns: repeat(auto-fill, minmax(16vw, 1fr));
+      gap: 2vh 1.2vw;
+      max-height: 56vh;
       overflow-y: auto;
     }
 
@@ -199,9 +203,9 @@
       background: rgba(80, 10, 14, 0.7);
       border: 1px solid rgba(185, 28, 28, 0.6);
       border-radius: 4px;
-      padding: 8px 12px;
+      padding: 1.4vh 1vw;
       font-family: 'Angel Wish', 'Wolf Brothers', sans-serif;
-      font-size: 1.6rem;
+      font-size: 5vh;
       letter-spacing: 1px;
       color: #fca5a5;
       display: flex;
@@ -425,7 +429,7 @@
       <div class="blood-card players-box">
         <h3>👥 Joueurs présents (<span id="player-count">0</span>)</h3>
         <ul id="player-list-target" class="players-list">
-          <li style="color: #94a3b8; font-family: sans-serif; font-size: 0.9rem;">En attente de joueurs...</li>
+          <li style="color: #94a3b8; font-family: sans-serif; font-size: 3.4vh;">En attente de joueurs...</li>
         </ul>
       </div>
 
@@ -467,7 +471,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 44');
+    console.info('Projecteur - version 46');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -481,6 +485,18 @@
     let fadeInterval = null;
     const overlayVideo = document.getElementById('overlay-video');
     const waitingScreen = document.getElementById('waiting-screen');
+    function lobbyQrSize() { return Math.round(Math.max(160, Math.min(window.innerHeight * 0.46, window.innerWidth * 0.28))); }
+    function renderLobbyQr(url) {
+      const qrTarget = document.getElementById('qr-code-target');
+      qrTarget.innerHTML = '';
+      const size = lobbyQrSize();
+      new QRCode(qrTarget, { text: url, width: size, height: size });
+    }
+    let lobbyQrTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(lobbyQrTimer);
+      lobbyQrTimer = setTimeout(() => { if (currentQrUrl) renderLobbyQr(currentQrUrl); }, 250);
+    });
     let currentQrUrl = null;
 
     function hideWaitingScreen() {
@@ -854,9 +870,7 @@
         case 'updateLobby':
           document.getElementById('room-code-text').textContent = data.roomCode || '----';
           if (data.joinUrl && data.joinUrl !== currentQrUrl) {
-            const qrTarget = document.getElementById('qr-code-target');
-            qrTarget.innerHTML = '';
-            new QRCode(qrTarget, { text: data.joinUrl, width: 160, height: 160 });
+            renderLobbyQr(data.joinUrl);
             currentQrUrl = data.joinUrl;
           }
           if (data.joinUrl && data.joinUrl !== miniQrUrl) renderMiniQr(data.joinUrl);
@@ -870,7 +884,7 @@
               pList.appendChild(li);
             });
           } else {
-            pList.innerHTML = '<li style="color: #94a3b8; font-family: sans-serif; font-size: 0.9rem;">En attente de joueurs...</li>';
+            pList.innerHTML = '<li style="color: #94a3b8; font-family: sans-serif; font-size: 3.4vh;">En attente de joueurs...</li>';
           }
           break;
 

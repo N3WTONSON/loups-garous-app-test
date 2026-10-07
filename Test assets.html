@@ -71,6 +71,13 @@ const ASSETS = {
     "Sorciere potion de vie.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%20potion%20de%20vie.mp3",
     "Sorciere potion de mort.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Sorciere%20potion%20de%20mort.mp3",
   },
+  music: {
+    "Feast Circle 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Feast%20Circle%201.mp3",
+    "Dusk in the Tavern 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Dusk%20in%20the%20Tavern%201.mp3",
+    "Dusk in the Tavern 2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Dusk%20in%20the%20Tavern%202.mp3",
+    "Tavern at Dusk 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Tavern%20at%20Dusk%201.mp3",
+    "Tavern at Dusk 2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/musique/Tavern%20at%20Dusk%202.mp3",
+  },
   video: {
     "Mort Loup.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Mort%20Loup.mp4",
     "Elimination 2.mp4": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/Elimination%202.mp4",
@@ -88,7 +95,7 @@ const ASSETS = {
   }
 };
 
-const ASSET_FOLDERS = { images: "images", audio: "mj/audio", video: "mj/video" };
+const ASSET_FOLDERS = { images: "images", audio: "mj/audio", video: "mj/video", music: "mj/musique" };
 
 // URL générique (secours si un nom n'est pas dans la table ci-dessus)
 function assetUrl(path) {
@@ -116,7 +123,7 @@ function mediaUrl(kind, name) {
           el.onload = () => finish(true);
           el.onerror = () => finish(false);
         } else {
-          el = document.createElement(kind === 'audio' ? 'audio' : 'video');
+          el = document.createElement((kind === 'audio' || kind === 'music') ? 'audio' : 'video');
           el.preload = 'metadata';
           el.onloadedmetadata = () => finish(true);
           el.onerror = () => finish(false);
