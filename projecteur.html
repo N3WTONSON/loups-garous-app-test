@@ -430,7 +430,7 @@
   </style>
 </head>
 <body>
-  <script src="bg.js?v=69"></script>
+  <script src="bg.js?v=70"></script>
 
   <!-- ÉCRAN DE SALON D'ATTENTE -->
   <div id="waiting-screen">
@@ -502,7 +502,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 69');
+    console.info('Projecteur - version 70');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -819,6 +819,7 @@
 
     // --- CANDIDATS AU POSTE DE MAIRE : liste + candidat qui parle ---
     function showCandidates(names, speaker, sub, title) {
+      if (window.setBgPhase) setBgPhase('day');
       document.getElementById('cand-title').textContent = title || '👑 Candidats à la mairie';
       const ov = document.getElementById('candidates-overlay');
       const list = document.getElementById('cand-list');
@@ -832,7 +833,7 @@
       document.getElementById('cand-sub').textContent = sub || (speaker ? 'Discours de ' + speaker : '');
       ov.style.display = 'flex';
     }
-    function hideDayVote() { document.getElementById('dayvote-overlay').style.display = 'none'; if (window.setBgPhase) setBgPhase('night'); }
+    function hideDayVote() { document.getElementById('dayvote-overlay').style.display = 'none'; }
     function showDayVote(mode) {
       if (window.setBgPhase) setBgPhase('day');
       const night = mode === 'night', roles = mode === 'roles';
@@ -1029,6 +1030,15 @@
           hideVictory();
           break;
 
+        case 'bgPhase':
+          if (window.setBgPhase) setBgPhase(data.phase);
+          if (data.phase === 'day') {              // scène de jour : la vidéo de fond « jour » est visible (rien d'autre derrière)
+            if (ytReady) ytPlayer.stopVideo();
+            document.getElementById('player').style.visibility = 'hidden';
+            hideWaitingScreen();
+          }
+          break;
+
         case 'dayVote':
           if (data.show) showDayVote(data.mode); else hideDayVote();
           break;
@@ -1042,6 +1052,10 @@
           break;
 
         case 'announceMayor':
+          if (window.setBgPhase) setBgPhase('day');
+          if (ytReady) ytPlayer.stopVideo();
+          document.getElementById('player').style.visibility = 'hidden';
+          hideWaitingScreen();
           hideCandidates();
           showMayor(data.name);
           break;

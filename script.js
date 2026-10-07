@@ -1,4 +1,4 @@
-const VERSION_APP = "69";
+const VERSION_APP = "70";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=69', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=70', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -429,6 +429,7 @@ function setPhase(phase) {
   currentPhase = phase === 'day' ? 'day' : 'night';
   if (window.setBgPhase) window.setBgPhase(currentPhase);
   players.forEach((p) => sendTo(p, { type: 'phase', phase: currentPhase }));
+  sendToProjector({ action: 'bgPhase', phase: currentPhase });
 }
 
 function startRoleReview() {
@@ -997,6 +998,7 @@ function playCommand(cmd) {
     // Vidéo du Maire en plein écran (sans recadrage), sans diffuser l'audio Maire.mp3
     if (startBlocked()) return;
     if (mayorCalled) { showToast('👑 Le Maire a déjà été appelé : le bouton est bloqué.', 'info'); return; }
+    setPhase('day');   // la phase du Maire est une scène de jour
     playRoleVideo("Maire.mp4", 'full', false);   // lue une seule fois, sans boucle
     stopLobbyMusic();
     mayorCalled = true;
@@ -1276,6 +1278,7 @@ function playRole(role) {
   const item = roleFiles[role];
   if (!item) return;
   if (calledOnce.has(role)) return;
+  if (role === 'voleur') setPhase('day');   // la phase du Voleur est une scène de jour
   if (role === 'renard' && foxPowerLost) return;   // le Renard n'a plus de pouvoir
   if (role === 'sorciere' && witchState.lifeUsed && witchState.deathUsed) return;   // plus de potion : on passe son tour
   currentTurnRole = TURN_ROLE_BY_CALL[role] || null;
