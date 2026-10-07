@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>Loup-Garou - Régie Maître du Jeu</title>
-  <link rel="stylesheet" href="style.css?v=51">
+  <link rel="stylesheet" href="style.css?v=53">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -203,32 +203,13 @@
 
     </div>
 
-        <!-- Consignes & Interventions : centrées en bas de page, au-dessus des Effets Sonores -->
-        <section class="card effects-bottom">
-          <h2 class="titre-wolf">📢 Consignes & Interventions</h2>
-          <div class="button-grid">
-            <button class="btn btn-night" onclick="playCommand('fermer_yeux')">
-              🙈 Fermez les yeux
-            </button>
-            <button class="btn btn-day" onclick="playCommand('voter')">
-              🗳️ Place au Vote !
-            </button>
-          </div>
-
-          <h3 style="font-size: 0.95rem; margin-top: 15px; color: #94a3b8;">Annonce des Morts :</h3>
-          <div class="button-grid">
-            <button class="btn btn-vert" onclick="playDeaths(0)">🕊️ Aucun Mort</button>
-            <button class="btn btn-danger" onclick="playDeaths(1)">💀 1 Mort</button>
-            <button class="btn btn-danger" onclick="playDeaths(2)">💀💀 2 Morts</button>
-            <button class="btn btn-danger" onclick="playDeaths(3)">💀💀💀 3 Morts</button>
-          </div>
-        </section>
-
     <!-- Effets Sonores : centrés en bas de page -->
         <!-- Effets Sonores -->
         <section class="card effects-bottom">
           <h2 class="titre-wolf">⚡ Effets Sonores</h2>
           <div class="button-grid">
+            <button class="btn btn-night" onclick="playCommand('fermer_yeux')">🙈 Fermez les yeux</button>
+            <button class="btn btn-day" onclick="playCommand('voter')">🗳️ Place au Vote !</button>
             <button class="btn btn-effect" onclick="playEffect('hurlement')">🐺 Hurlement</button>
             <button class="btn btn-effect" onclick="playEffect('sorciere')">🧙‍♀️ Rire de la Sorcière</button>
           </div>
@@ -250,7 +231,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 51</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 53</p>
 
   <script>
     (function () {
@@ -281,6 +262,6 @@
       });
     })();
   </script>
-  <script src="script.js?v=51"></script>
+  <script src="script.js?v=53"></script>
 </body>
 </html>

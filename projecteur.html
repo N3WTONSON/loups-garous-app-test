@@ -470,13 +470,13 @@
     <div id="victory-sub" class="victory-sub">Tous les Loups-Garous ont été éliminés</div>
   </div>
   <div id="hunter-wait-overlay">
-    <div class="hw-role">Chasseur</div>
+    <div id="hw-role" class="hw-role">Chasseur</div>
     <div class="hw-card"><div class="card-face" id="hw-face"></div></div>
     <div id="hw-name" class="hw-name"></div>
-    <div class="hw-sub">🏹 Il choisit sa cible pour son dernier tir…</div>
+    <div id="hw-sub" class="hw-sub">🏹 Il choisit sa cible pour son dernier tir…</div>
   </div>
   <div id="candidates-overlay">
-    <div class="cand-title">👑 Candidats à la mairie</div>
+    <div id="cand-title" class="cand-title">👑 Candidats à la mairie</div>
     <div id="cand-list" class="cand-list"></div>
     <div id="cand-sub" class="cand-sub"></div>
   </div>
@@ -491,7 +491,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 51');
+    console.info('Projecteur - version 53');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -787,24 +787,28 @@
     document.getElementById('victory-overlay').addEventListener('click', hideVictory);
 
     // --- ATTENTE DU CHASSEUR : sa carte carrée + son nom ---
-    function showHunterWait(name) {
+    function showHunterWait(name, role, sub) {
+      role = role || 'Chasseur';
+      document.getElementById('hw-role').textContent = role;
+      document.getElementById('hw-sub').textContent = sub || '🏹 Il choisit sa cible pour son dernier tir…';
       const face = document.getElementById('hw-face');
       face.innerHTML = '';
-      const url = roleImgUrl('Chasseur');
+      const url = roleImgUrl(role);
       if (url) {
         const img = document.createElement('img');
-        img.alt = 'Chasseur';
-        img.onerror = () => { img.remove(); face.textContent = 'Chasseur'; };
+        img.alt = role;
+        img.onerror = () => { img.remove(); face.textContent = role; };
         img.src = url;
         face.appendChild(img);
-      } else { face.textContent = 'Chasseur'; }
+      } else { face.textContent = role; }
       document.getElementById('hw-name').textContent = name || '';
       document.getElementById('hunter-wait-overlay').style.display = 'flex';
     }
     function hideHunterWait() { document.getElementById('hunter-wait-overlay').style.display = 'none'; }
 
     // --- CANDIDATS AU POSTE DE MAIRE : liste + candidat qui parle ---
-    function showCandidates(names, speaker, sub) {
+    function showCandidates(names, speaker, sub, title) {
+      document.getElementById('cand-title').textContent = title || '👑 Candidats à la mairie';
       const ov = document.getElementById('candidates-overlay');
       const list = document.getElementById('cand-list');
       list.innerHTML = '';
@@ -976,11 +980,11 @@
           break;
 
         case 'hunterWaiting':
-          if (data.hide) hideHunterWait(); else showHunterWait(data.name);
+          if (data.hide) hideHunterWait(); else showHunterWait(data.name, data.role, data.sub);
           break;
 
         case 'mayorCandidates':
-          if (data.hide) hideCandidates(); else showCandidates(data.names, data.speaker, data.sub);
+          if (data.hide) hideCandidates(); else showCandidates(data.names, data.speaker, data.sub, data.title);
           break;
 
         case 'announceMayor':

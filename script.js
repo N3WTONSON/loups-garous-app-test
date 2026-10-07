@@ -1,4 +1,4 @@
-const VERSION_APP = "51";
+const VERSION_APP = "53";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -142,7 +142,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=51', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=53', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -1987,8 +1987,8 @@ function renderMayorControls() {
   if (!card) return;
   if (rps) {
     card.style.display = '';
-    document.getElementById('mayor-controls-info').innerHTML = `✊✋✌️ Égalité ! Pierre, feuille, ciseaux (manche ${rps.round}) entre ${rps.names.map(nameHtml).join(', ')} — ${rps.picks.size}/${rps.names.length} ont joué.`;
-    document.getElementById('mayor-controls-buttons').innerHTML = '<button type="button" class="btn btn-danger" onclick="cancelRps()">✖ Annuler (désigner le Maire à la main)</button>';
+    document.getElementById('mayor-controls-info').innerHTML = `✊✋✌️ Égalité ! Pierre, feuille, ciseaux (manche ${rps.round}${rps.purpose === 'vote' ? ', vote du village' : ''}) entre ${rps.names.map(nameHtml).join(', ')} — ${rps.picks.size}/${rps.names.length} ont joué.`;
+    document.getElementById('mayor-controls-buttons').innerHTML = '<button type="button" class="btn btn-danger" onclick="cancelRps()">✖ Annuler (choisir à la main)</button>';
     return;
   }
   if (!mayorVote.open) { card.style.display = 'none'; return; }
@@ -2075,23 +2075,27 @@ function closeMayorVote(silent = false) {
 }
 
 // ---- Égalité : les candidats ex æquo jouent à Pierre, feuille, ciseaux sur leur téléphone ----
-let rps = null;   // { names, picks: Map, round, timer }
+let rps = null;   // { names, picks: Map, round, timer, purpose: 'mayor'|'vote' }
 const RPS_BEATS = { pierre: 'ciseaux', feuille: 'pierre', ciseaux: 'feuille' };
 
 function sendRpsTurn(p) {
   if (!rps || !p || !rps.names.includes(p.name)) return;
-  sendTo(p, { type: 'rpsTurn', names: rps.names, round: rps.round, myPick: rps.picks.get(p.name) || null });
+  sendTo(p, { type: 'rpsTurn', names: rps.names, round: rps.round, purpose: rps.purpose, myPick: rps.picks.get(p.name) || null });
 }
 
 function pushRpsToProjector() {
-  sendToProjector({ action: 'mayorCandidates', names: rps.names, speaker: null, sub: '✊ ✋ ✌️  Égalité ! Pierre, feuille, ciseaux…' });
+  const vote = rps.purpose === 'vote';
+  sendToProjector({ action: 'mayorCandidates', names: rps.names, speaker: null, title: vote ? '🗳️ Égalité au vote du village' : undefined,
+    sub: vote ? '✊ ✋ ✌️  Pierre, feuille, ciseaux : le perdant est éliminé' : '✊ ✋ ✌️  Égalité ! Pierre, feuille, ciseaux…' });
 }
 
-function startMayorTieBreak(names) {
-  rps = { names: [...names], picks: new Map(), round: 1, timer: null };
+function startMayorTieBreak(names, purpose = 'mayor') {
+  rps = { names: [...names], picks: new Map(), round: 1, timer: null, purpose };
   rps.names.forEach((n) => sendRpsTurn(findPlayer(n)));
   pushRpsToProjector();
-  showToast(`👑 Égalité entre ${names.join(', ')} : ils jouent à Pierre, feuille, ciseaux sur leur téléphone.`, 'info');
+  showToast(purpose === 'vote'
+    ? `🗳️ Égalité entre ${names.join(', ')} : ils jouent à Pierre, feuille, ciseaux sur leur téléphone (le perdant est éliminé).`
+    : `👑 Égalité entre ${names.join(', ')} : ils jouent à Pierre, feuille, ciseaux sur leur téléphone.`, 'info');
   renderMJDashboard();
 }
 
@@ -2115,8 +2119,23 @@ function resolveRpsRound() {
     winners = rps.names.filter((n) => rps.picks.get(n) === win);
   }
   const known = rps.names.slice();
-  if (winners && winners.length === 1) {
-    const winner = winners[0];
+  const vote = rps.purpose === 'vote';
+  // vote du village : le perdant est éliminé (on continue entre les perdants s'ils sont plusieurs)
+  const losers = winners ? rps.names.filter((n) => !winners.includes(n)) : null;
+  const keep = vote ? losers : winners;
+  if (keep && keep.length === 1) {
+    const only = keep[0];
+    if (vote) {
+      known.forEach((n) => sendTo(findPlayer(n), { type: 'rpsResult', picks, loser: only }));
+      rps = null;
+      sendToProjector({ action: 'mayorCandidates', hide: true });
+      selection.vote = new Set([only]);
+      showToast(`🗳️ ${only} perd au Pierre, feuille, ciseaux : il est éliminé.`, 'info');
+      renderMJDashboard();
+      setTimeout(() => { announceKillEvent('vote', { auto: true }); }, 3500);
+      return;
+    }
+    const winner = only;
     known.forEach((n) => sendTo(findPlayer(n), { type: 'rpsResult', picks, winner }));
     rps = null;
     selection.mayor = new Set([winner]);
@@ -2126,7 +2145,7 @@ function resolveRpsRound() {
     return;
   }
   // égalité parfaite (ou plusieurs gagnants) : on rejoue entre les joueurs encore en lice
-  const next = winners || rps.names;
+  const next = keep || rps.names;
   known.forEach((n) => sendTo(findPlayer(n), { type: 'rpsResult', picks, draw: !winners, next }));
   rps.names = next.slice();
   rps.picks = new Map();
@@ -2142,9 +2161,10 @@ function cancelRps() {
   if (!rps) return;
   clearTimeout(rps.timer);
   rps.names.forEach((n) => sendTo(findPlayer(n), { type: 'rpsResult', cancel: true }));
+  const purpose = rps.purpose;
   rps = null;
   sendToProjector({ action: 'mayorCandidates', hide: true });
-  showToast('👑 Pierre, feuille, ciseaux annulé : désignez le Maire à la main.', 'info');
+  showToast(purpose === 'vote' ? '🗳️ Pierre, feuille, ciseaux annulé : sélectionnez à la main qui est éliminé.' : '👑 Pierre, feuille, ciseaux annulé : désignez le Maire à la main.', 'info');
   renderMJDashboard();
 }
 
@@ -2165,12 +2185,14 @@ function startMayorSuccession(dead) {
   if (!alivePlayers().length) return;
   successionPending = dead.name;
   sendSuccessionTurn(dead);
+  sendToProjector({ action: 'hunterWaiting', name: dead.name, role: dead.role, sub: '👑 Le Maire est mort : il doit transmettre son rôle de Maire à un joueur encore en vie' });
   showToast(`👑 Le Maire ${dead.name} est mort : il choisit son successeur depuis son téléphone.`, 'info');
 }
 
 function cancelMayorSuccession() {
   const p = successionPending ? findPlayer(successionPending) : null;
   successionPending = null;
+  sendToProjector({ action: 'hunterWaiting', hide: true });
   if (p) sendTo(p, { type: 'mayorSuccessionDone' });
 }
 
@@ -2183,6 +2205,7 @@ function handleMayorSuccessor(conn, data) {
   mayor = t.name;
   selection.mayor = new Set();
   sendTo(dead, { type: 'mayorSuccessionDone' });
+  sendToProjector({ action: 'hunterWaiting', hide: true });
   const shown = sendToProjector({ action: 'announceMayor', name: t.name });
   showToast(`👑 ${dead.name} désigne ${t.name} comme nouveau Maire${shown ? '' : ' (écran secondaire fermé)'}.`, 'info');
   renderMJDashboard();
@@ -2251,7 +2274,8 @@ function closeVillageVote(silent = false) {
       showToast(`🗳️ ${names[0]} a le plus de votes (${max}).`, 'info');
     } else if (names.length > 1) {
       selection.vote = new Set();
-      showToast(`🗳️ Égalité entre ${names.join(', ')} : sélectionnez à la main qui est éliminé.`, 'info');
+      if (names.length > 1 && !rps && names.every((n) => { const p = findPlayer(n); return p && p.alive && p.connected; })) startMayorTieBreak(names, 'vote');
+      else showToast(`🗳️ Égalité entre ${names.join(', ')} : sélectionnez à la main qui est éliminé.`, 'info');
     } else {
       showToast("🗳️ Aucun vote exprimé.", 'info');
     }

@@ -549,7 +549,10 @@ function showWitchPanel(data) {
   const saveBox = document.getElementById('witch-save');
   saveBox.style.display = witchState.canSave ? 'block' : 'none';
   if (witchState.canSave) {
-    document.getElementById('witch-victim-text').textContent = `Cette nuit, les loups ont attaqué : ${witchState.victim}.`;
+    const me = session && session.name;
+    document.getElementById('witch-victim-text').textContent = witchState.victim === me
+      ? "Cette nuit, les loups t'ont attaquée : tu peux te sauver toi-même avec ta potion de vie."
+      : `Cette nuit, les loups ont attaqué : ${witchState.victim}.`;
   }
   document.getElementById('witch-novictim').style.display = (!witchState.canSave && data.noVictim) ? 'block' : 'none';
   document.getElementById('witch-poison').style.display = witchState.canPoison ? 'block' : 'none';
@@ -569,7 +572,7 @@ function renderWitch() {
   saveBtn.disabled = !!witchState.poison;
   saveBtn.textContent = witchState.save
     ? `✅ Potion de vie sur ${witchState.victim} (toucher pour annuler)`
-    : `🧪💚 Sauver ${witchState.victim || ''}`;
+    : (witchState.victim === (session && session.name) ? '🧪💚 Me sauver moi-même' : `🧪💚 Sauver ${witchState.victim || ''}`);
 
   const list = document.getElementById('witch-poison-list');
   list.innerHTML = '';
@@ -712,7 +715,7 @@ function showRpsTurn(data) {
   clearTimeout(rpsHideTimer);
   const me = session && session.name;
   const others = (data.names || []).filter((n) => n !== me);
-  document.getElementById('rps-info').textContent = `Égalité pour la mairie ! Tu affrontes ${others.join(' et ')}. Manche ${data.round || 1} : choisis ton signe.`;
+  document.getElementById('rps-info').textContent = (data.purpose === 'vote' ? `Égalité au vote du village ! Le perdant est éliminé. Tu affrontes` : `Égalité pour la mairie ! Tu affrontes`)+` ${others.join(' et ')}. Manche ${data.round || 1} : choisis ton signe.`;
   document.getElementById('rps-result').textContent = '';
   rpsEnable(!data.myPick);
   if (data.myPick) showRpsAck(data.myPick);
@@ -738,7 +741,8 @@ function showRpsResult(data) {
   } else {
     const lines = Object.entries(data.picks || {}).map(([n, p]) => `${n} : ${RPS_ICON[p] || ''} ${p}`).join('  —  ');
     let verdict;
-    if (data.winner) verdict = data.winner === me ? '🏆 Tu gagnes : tu deviens Maire !' : `${data.winner} gagne et devient Maire.`;
+    if (data.loser) verdict = data.loser === me ? '💀 Tu perds : tu es éliminé par le village.' : `${data.loser} perd et est éliminé par le village.`;
+    else if (data.winner) verdict = data.winner === me ? '🏆 Tu gagnes : tu deviens Maire !' : `${data.winner} gagne et devient Maire.`;
     else if (data.draw) verdict = 'Égalité, on recommence…';
     else verdict = (data.next || []).includes(me) ? 'Tu passes à la manche suivante…' : 'Tu es éliminé du duel.';
     el.textContent = lines + '\n' + verdict;
@@ -746,7 +750,7 @@ function showRpsResult(data) {
   rpsEnable(false);
   showPanel('rps-panel');
   clearTimeout(rpsHideTimer);
-  if (data.winner || data.cancel) rpsHideTimer = setTimeout(() => hidePanel('rps-panel'), 6000);
+  if (data.winner || data.loser || data.cancel) rpsHideTimer = setTimeout(() => hidePanel('rps-panel'), 6000);
 }
 
 // --- Candidatures du Maire : « Je me présente » / « Je ne me présente pas », puis discours oraux ---
