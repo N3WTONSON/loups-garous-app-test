@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>Loup-Garou - Régie Maître du Jeu</title>
-  <link rel="stylesheet" href="style.css?v=83">
+  <link rel="stylesheet" href="style.css?v=84">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -21,7 +21,7 @@
   </div>
   <button id="help-btn" class="help-btn" onclick="toggleHelp(true)" title="Comment utiliser l'application" aria-label="Aide">❓ Aide</button>
   <script>function toggleHelp(on){document.getElementById('help-modal').style.display=on?'flex':'none';}document.addEventListener('keydown',function(e){if(e.key==='Escape')toggleHelp(false);});</script>
-  <script src="bg.js?v=83"></script>
+  <script src="bg.js?v=84"></script>
 
 <header>
   <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png?v=2" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
@@ -71,7 +71,7 @@
 
         <!-- Configuration des Rôles et Joueurs Connectés (Sous Création de la Partie) -->
         <section class="card" id="mj-setup-card" style="display: none;">
-          <h2>🃏 Rôles & Distribution</h2>
+          <h2 class="collapsible-title" onclick="toggleSetupCard()" title="Plier / déplier">🃏 Rôles & Distribution <span id="setup-arrow" class="setup-arrow">▾</span></h2>
           
           <div class="setup-grid">
             <div class="setup-block">
@@ -279,7 +279,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 83</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 84</p>
 
   <script>
     (function () {
@@ -303,6 +303,6 @@
       });
     })();
   </script>
-  <script src="script.js?v=83"></script>
+  <script src="script.js?v=84"></script>
 </body>
 </html>

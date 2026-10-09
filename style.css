@@ -868,3 +868,8 @@ input[type="number"] {
 .mixer-panel label { display: block; margin: 10px 0; font-size: .9rem; }
 .mixer-panel label span { float: right; opacity: .8; }
 .mixer-panel input[type=range] { width: 100%; margin-top: 6px; }
+
+.collapsible-title { cursor: pointer; user-select: none; }
+.setup-arrow { float: right; opacity: .7; }
+#mj-setup-card.collapsed > *:not(h2) { display: none !important; }
+#mj-setup-card.collapsed h2 { margin-bottom: 0; }

@@ -1,4 +1,4 @@
-const VERSION_APP = "83";
+const VERSION_APP = "84";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=83', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=84', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -471,6 +471,13 @@ function handleRoleSeen(conn) {
   renderMJDashboard();
 }
 
+function toggleSetupCard(force) {
+  const c = document.getElementById('mj-setup-card'); if (!c) return;
+  const on = (typeof force === 'boolean') ? force : !c.classList.contains('collapsed');
+  c.classList.toggle('collapsed', on);
+  const ar = document.getElementById('setup-arrow'); if (ar) ar.textContent = on ? '▸' : '▾';
+}
+
 function distributeRolesNetwork() {
   if (players.length === 0 || roles.length !== players.length) {
     alert("Vérifiez que le nombre de joueurs équivaut au nombre de rôles.");
@@ -514,6 +521,7 @@ function distributeRolesNetwork() {
     }
   });
   distributed = true;
+  toggleSetupCard(true);   // les rôles sont distribués : on plie la case
   allSeenShown = false;
   closeAllSeenModal();
   activeCallRoles = new Set(roles);
