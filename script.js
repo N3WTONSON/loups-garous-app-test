@@ -1,4 +1,4 @@
-const VERSION_APP = "84";
+const VERSION_APP = "85";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=84', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=85', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -267,8 +267,13 @@ function handlePlayerConnClose(conn) {
   }
 }
 
+// Prénom affiché : première lettre en majuscule, le reste en minuscules (aussi après un espace ou un tiret)
+function formatPlayerName(raw) {
+  return String(raw || '').trim().toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (m, sep, ch) => sep + ch.toUpperCase());
+}
+
 function handleJoin(conn, data) {
-  const name = String(data.playerName || '').trim().slice(0, 20);
+  const name = formatPlayerName(data.playerName).slice(0, 20);
   const token = String(data.token || '');
 
   if (!name) {

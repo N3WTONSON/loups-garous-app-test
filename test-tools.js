@@ -131,7 +131,7 @@
   }
 
   function addSimPlayer(name) {
-    name = String(name || '').trim().slice(0, 20);
+    name = formatPlayerName(name).slice(0, 20);
     if (!name) return false;
     if (distributed) {
       showToast("Les rôles sont déjà distribués : rechargez la page test pour recommencer une partie.", 'info');

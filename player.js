@@ -138,7 +138,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 function joinRoom() {
-  const name = document.getElementById('player-name').value.trim();
+  const name = String(document.getElementById('player-name').value || '').trim().toLowerCase().replace(/(^|[\s'’-])(\p{L})/gu, (m, sep, ch) => sep + ch.toUpperCase());
   const room = document.getElementById('room-code').value.trim().toUpperCase();
 
   if (!name || !room) {
