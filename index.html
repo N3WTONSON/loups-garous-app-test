@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>Loup-Garou - Régie Maître du Jeu</title>
-  <link rel="stylesheet" href="style.css?v=86">
+  <link rel="stylesheet" href="style.css?v=87">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -21,7 +21,7 @@
   </div>
   <button id="help-btn" class="help-btn" onclick="toggleHelp(true)" title="Comment utiliser l'application" aria-label="Aide">❓ Aide</button>
   <script>function toggleHelp(on){document.getElementById('help-modal').style.display=on?'flex':'none';}document.addEventListener('keydown',function(e){if(e.key==='Escape')toggleHelp(false);});</script>
-  <script src="bg.js?v=86"></script>
+  <script src="bg.js?v=87"></script>
 
 <header>
   <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png?v=2" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
@@ -66,6 +66,17 @@
             <div id="qrcode" style="display: inline-block; padding: 10px; background: white; border-radius: 8px; margin: 10px 0;"></div>
             <p style="font-size: 0.9rem; color: #94a3b8; margin: 4px 0;">Scannez pour rejoindre</p>
             <p id="join-url" class="hint"></p>
+            <div id="remote-proj-box" class="remote-proj" style="display:none;">
+              <h3>📺 Écran secondaire sur TV / vidéoprojecteur</h3>
+              <p class="hint">Sur la TV, le vidéoprojecteur ou un autre appareil, ouvrez ce lien (ou scannez le QR code), ou castez directement :</p>
+              <div id="remote-proj-qr" class="remote-qr"></div>
+              <p id="remote-proj-url" class="hint remote-url"></p>
+              <div class="remote-btns">
+                <button class="btn btn-effect" onclick="copyRemoteProjectorUrl()">📋 Copier le lien</button>
+                <button class="btn btn-projector" id="cast-btn" onclick="castProjector()">📡 Caster sur une TV</button>
+              </div>
+              <p id="remote-proj-status" class="hint">Aucun écran distant connecté</p>
+            </div>
           </div>
         </section>
 
@@ -249,7 +260,8 @@
         <h3>1. Préparer la partie</h3>
         <ol>
           <li>Clique sur <b>Créer le salon</b> : un code et un QR code s'affichent.</li>
-          <li>Ouvre l'<b>écran secondaire (projecteur)</b> avec le bouton dédié et place-le sur la TV / le vidéoprojecteur. Clique dessus une fois pour activer le son.</li>
+          <li>Ouvre l'<b>écran secondaire (projecteur)</b> avec le bouton dédié et place-le sur la TV / le vidéoprojecteur, ou, après la création du salon, utilise le bloc <b>📺 Écran secondaire sur TV</b> : ouvre le lien (ou le QR code) sur la TV / un autre appareil, ou clique sur <b>📡 Caster</b>. Clique sur l'écran une fois pour activer le son.</li>
+          <li><b>Depuis une tablette</b> : ouvre simplement cette page sur la tablette (l'écran reste allumé pendant la partie) et affiche l'écran secondaire sur la TV avec le lien ci-dessus.</li>
           <li>Les joueurs scannent le QR code (ou saisissent le code) sur leur téléphone et entrent leur prénom.</li>
           <li>Choisis les <b>rôles en jeu</b> (le nombre doit correspondre au nombre de joueurs) puis clique sur <b>Distribuer les rôles</b>.</li>
           <li>Chaque joueur découvre son rôle sur son téléphone. La partie ne peut commencer que lorsque <b>tous ont pris connaissance</b> de leur rôle.</li>
@@ -279,7 +291,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 86</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 87</p>
 
   <script>
     (function () {
@@ -303,6 +315,6 @@
       });
     })();
   </script>
-  <script src="script.js?v=86"></script>
+  <script src="script.js?v=87"></script>
 </body>
 </html>

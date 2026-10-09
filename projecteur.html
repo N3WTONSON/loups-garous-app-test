@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta charset="UTF-8">
   <link rel="icon" href="data:,">
   <title>Loup-Garou - Écran Projecteur</title>
@@ -432,7 +433,7 @@
   </style>
 </head>
 <body>
-  <script src="bg.js?v=86"></script>
+  <script src="bg.js?v=87"></script>
 
   <!-- ÉCRAN DE SALON D'ATTENTE -->
   <div id="waiting-screen">
@@ -514,6 +515,26 @@
     const MAX_VOLUME = 0.8;              // plafond des vidéos MP4 (1 = maximum)
     const MAX_YT_VOLUME = 80;            // plafond de la scène YouTube (0 à 100)
     const FADE_IN_MS = 500;
+    // --- Liaison avec la régie : fenêtre ouverte par la régie (window.opener) OU connexion distante (?room=CODE : TV, vidéoprojecteur, cast) ---
+    const REMOTE_ROOM = new URLSearchParams(location.search).get('room');
+    let hostConn = null;
+    function toHost(msg) {
+      if (window.opener) { try { window.opener.postMessage(msg, '*'); } catch (e) {} }
+      if (hostConn && hostConn.open) { try { hostConn.send({ type: 'projMsg', msg }); } catch (e) {} }
+    }
+    function connectToHost() {
+      if (!REMOTE_ROOM || typeof Peer === 'undefined') return;
+      const pr = new Peer();
+      pr.on('open', () => {
+        const c = pr.connect('LG-' + REMOTE_ROOM, { reliable: true });
+        hostConn = c;
+        c.on('open', () => { c.send({ type: 'projectorHello' }); toHost({ action: 'projectorReady' }); });
+        c.on('data', (d) => { if (d && d.type === 'projector') handleHostMessage(d.msg); });
+        c.on('close', () => { hostConn = null; try { pr.destroy(); } catch (e) {} setTimeout(connectToHost, 3000); });
+        c.on('error', () => {});
+      });
+      pr.on('error', () => { try { pr.destroy(); } catch (e) {} setTimeout(connectToHost, 4000); });
+    }
     let targetVolume = MAX_YT_VOLUME;
     let sceneMix = 1, videoMix = 1, lastRel = 1;   // curseurs de la régie (0 à 1)
     let fadeInterval = null;
@@ -568,7 +589,7 @@
       if (overlayVideo.loop || !overlayVideo.hasAttribute('src')) return;
       const url = overlayVideo.getAttribute('src');
       hideOverlay();
-      if (window.opener) window.opener.postMessage({ action: 'overlayEnded', url }, '*');
+      toHost({ action: 'overlayEnded', url });
     });
 
     // Cadrage automatique : 50 % de la largeur de l'écran, hauteur déduite du format de la vidéo (jamais de bandes
@@ -612,7 +633,7 @@
           onReady: () => {
             ytReady = true;
             if (pendingVideoId) { playScene(pendingVideoId, pendingLoop); pendingVideoId = null; }
-            if (window.opener) window.opener.postMessage({ action: 'projectorReady' }, '*');
+            toHost({ action: 'projectorReady' });
           },
           onStateChange: (event) => {
             if (event.data === YT.PlayerState.ENDED) {
@@ -890,7 +911,7 @@
       hideDeaths();
       stopSfx(false);                                  // l'effet sonore s'arrête avec la scène d'annonce
       if (ytReady) ytPlayer.setVolume(targetVolume);   // on rend le son à la scène
-      if (window.opener) window.opener.postMessage({ action: 'eventEnded' }, '*');   // la régie peut enchaîner (ex. lever du jour)
+      toHost({ action: 'eventEnded' });   // la régie peut enchaîner (ex. lever du jour)
     }
 
     // --- Activation du son : le navigateur exige un clic dans cette fenêtre pour autoriser les vidéos avec son ---
@@ -996,16 +1017,21 @@
     window.addEventListener('resize', () => { if (miniQrUrl) renderMiniQr(miniQrUrl); });
 
     // le projecteur prévient la régie dès qu'il est chargé (affichage immédiat du salon)
-    if (window.opener) window.opener.postMessage({ action: 'projectorReady' }, '*');
+    toHost({ action: 'projectorReady' });
 
     // Pas de bouton : un simple clic dans cette fenêtre lève un éventuel blocage du son
     window.addEventListener('click', () => {
       if (ytReady) { ytPlayer.unMute(); ytPlayer.setVolume(targetVolume); }
     });
 
+    connectToHost();
+
     window.addEventListener('message', (event) => {
       if (event.source !== window.opener) return;
-      const data = event.data;
+      handleHostMessage(event.data);
+    });
+
+    function handleHostMessage(data) {
       if (!data || !data.action) return;
 
       switch (data.action) {
@@ -1149,7 +1175,7 @@
           fadeVolumeTo(data.volume, data.duration || 600);
           break;
       }
-    });
+    }
   </script>
 </body>
 </html>

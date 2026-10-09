@@ -1,4 +1,4 @@
-const VERSION_APP = "86";
+const VERSION_APP = "87";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -122,15 +122,91 @@ function escapeHtml(str) {
 
 const PROJECTOR_TARGET = window.location.origin === 'null' ? '*' : window.location.origin;
 
+// Écrans secondaires distants (TV, vidéoprojecteur, Chromecast, autre appareil) : connexion PeerJS vers cette régie
+let remoteProjectors = [];
+
+function remoteProjectorCount() {
+  remoteProjectors = remoteProjectors.filter((c) => c.open);
+  return remoteProjectors.length;
+}
+
 function projectorOpen() {
-  return projectorWindow && !projectorWindow.closed;
+  return !!(projectorWindow && !projectorWindow.closed) || remoteProjectorCount() > 0;
 }
 
 function sendToProjector(msg) {
-  if (!projectorOpen()) return false;
-  projectorWindow.postMessage(msg, PROJECTOR_TARGET);
-  return true;
+  let sent = false;
+  if (projectorWindow && !projectorWindow.closed) {
+    projectorWindow.postMessage(msg, PROJECTOR_TARGET);
+    sent = true;
+  }
+  remoteProjectors.forEach((c) => {
+    if (c.open) { try { c.send({ type: 'projector', msg }); sent = true; } catch (e) {} }
+  });
+  return sent;
 }
+
+function registerRemoteProjector(conn) {
+  if (!remoteProjectors.includes(conn)) remoteProjectors.push(conn);
+  conn.on('close', () => { remoteProjectors = remoteProjectors.filter((c) => c !== conn); updateRemoteProjectorUI(); });
+  updateRemoteProjectorUI();
+}
+
+function updateRemoteProjectorUI() {
+  const el = document.getElementById('remote-proj-status');
+  if (!el) return;
+  const n = remoteProjectorCount();
+  el.textContent = n ? `✅ ${n} écran${n > 1 ? 's' : ''} distant${n > 1 ? 's' : ''} connecté${n > 1 ? 's' : ''}` : 'Aucun écran distant connecté';
+}
+
+function remoteProjectorUrl() {
+  const basePath = window.location.pathname.replace(/[^/]*$/, '');
+  return `${window.location.origin}${basePath}projecteur.html?room=${roomCode}`;
+}
+
+function setupRemoteProjectorUI() {
+  const box = document.getElementById('remote-proj-box');
+  if (!box || !roomCode || window.location.origin === 'null') return;
+  box.style.display = 'block';
+  const url = remoteProjectorUrl();
+  document.getElementById('remote-proj-url').textContent = url;
+  const q = document.getElementById('remote-proj-qr');
+  q.innerHTML = '';
+  try { new QRCode(q, { text: url, width: 110, height: 110 }); } catch (e) {}
+  const castBtn = document.getElementById('cast-btn');
+  if (castBtn) castBtn.style.display = ('PresentationRequest' in window) ? '' : 'none';
+  updateRemoteProjectorUI();
+}
+
+function copyRemoteProjectorUrl() {
+  const url = remoteProjectorUrl();
+  if (navigator.clipboard) navigator.clipboard.writeText(url).then(() => showToast('Lien copié', 'info')).catch(() => {});
+  else window.prompt('Lien de l\'écran secondaire :', url);
+}
+
+// Caster l'écran secondaire sur une TV / un vidéoprojecteur compatible (API Présentation : Chrome, Edge, Chromecast…)
+let castConnection = null;
+function castProjector() {
+  if (!roomCode) { showToast('Créez d\'abord le salon.', 'info'); return; }
+  if (!('PresentationRequest' in window)) { showToast('Ce navigateur ne sait pas caster : ouvrez le lien sur la TV.', 'info'); return; }
+  try {
+    const req = new PresentationRequest([remoteProjectorUrl()]);
+    req.start().then((c) => {
+      castConnection = c;
+      showToast('📺 Écran secondaire casté', 'info');
+    }).catch((e) => { if (e && e.name !== 'NotAllowedError' && e.name !== 'AbortError') showToast('Cast impossible : ' + (e.message || e.name), 'info'); });
+  } catch (e) { showToast('Cast indisponible sur cet appareil.', 'info'); }
+}
+
+// Empêche la tablette de se mettre en veille pendant la partie (sinon la connexion avec les joueurs est coupée)
+let wakeLockSentinel = null;
+async function keepScreenAwake() {
+  try {
+    if (!('wakeLock' in navigator)) return;
+    wakeLockSentinel = await navigator.wakeLock.request('screen');
+  } catch (e) { /* refusé : sans importance */ }
+}
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && hostOpened) keepScreenAwake(); });
 
 function syncLobbyToProjector() {
   if (!projectorOpen() || !roomCode) return;
@@ -147,18 +223,22 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=86', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=87', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
 }
 
 window.addEventListener('message', (event) => {
-  const data = event.data;
+  handleProjectorMessage(event.data);
+});
+
+function handleProjectorMessage(data) {
   if (!data) return;
   if (data.action === 'projectorReady') {
     setTimeout(pushMixerToProjector, 300);
     syncLobbyToProjector();
+    sendToProjector({ action: 'bgPhase', phase: currentPhase });
   } else if (data.action === 'eventEnded') {
     // l'annonce de mort vient de se terminer : victoire éventuelle d'abord, sinon l'annonce suivante, puis le lever du jour
     if (dayPause && !hunterState && !hunterWaiting()) resumePauseMusic();   // fin de l'élimination : la musique reprend pendant la pause
@@ -185,7 +265,7 @@ window.addEventListener('message', (event) => {
       currentOverlayFile = null;
     }
   }
-});
+}
 
 function generateRoomCode() {
   return Math.random().toString(36).substring(2, 6).toUpperCase();
@@ -217,10 +297,16 @@ function initHost(attempt = 0) {
     }
 
     syncLobbyToProjector();
+    setupRemoteProjectorUI();
+    keepScreenAwake();
   });
 
   peer.on('connection', (conn) => {
-    conn.on('data', (data) => routePlayerMessage(conn, data));
+    conn.on('data', (data) => {
+      if (data && data.type === 'projectorHello') { registerRemoteProjector(conn); return; }
+      if (data && data.type === 'projMsg') { handleProjectorMessage(data.msg); return; }
+      routePlayerMessage(conn, data);
+    });
     conn.on('close', () => handlePlayerConnClose(conn));
   });
 
