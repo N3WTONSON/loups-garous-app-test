@@ -432,7 +432,7 @@
   </style>
 </head>
 <body>
-  <script src="bg.js?v=79"></script>
+  <script src="bg.js?v=82"></script>
 
   <!-- ÉCRAN DE SALON D'ATTENTE -->
   <div id="waiting-screen">
@@ -504,7 +504,7 @@
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
-    console.info('Projecteur - version 79');
+    console.info('Projecteur - version 80');
     let ytPlayer = null;
     let ytReady = false;
     let pendingVideoId = null;
@@ -515,6 +515,7 @@
     const MAX_YT_VOLUME = 80;            // plafond de la scène YouTube (0 à 100)
     const FADE_IN_MS = 500;
     let targetVolume = MAX_YT_VOLUME;
+    let sceneMix = 1, videoMix = 1, lastRel = 1;   // curseurs de la régie (0 à 1)
     let fadeInterval = null;
     const overlayVideo = document.getElementById('overlay-video');
     const waitingScreen = document.getElementById('waiting-screen');
@@ -634,7 +635,7 @@
       video.volume = 0;
       const tick = () => {
         i++;
-        video.volume = Math.min(max, max * i / steps);
+        video.volume = Math.min(max * videoMix, max * videoMix * i / steps);
         if (i < steps) setTimeout(tick, ms / steps);
       };
       setTimeout(tick, ms / steps);
@@ -673,7 +674,8 @@
 
     // volume relatif demandé par la régie (1 = niveau normal = plafond, 0.25 = voix du MJ par-dessus)
     function fadeVolumeTo(target01, durationMs = 600) {
-      targetVolume = Math.max(0, Math.min(MAX_YT_VOLUME, target01 * MAX_YT_VOLUME));
+      lastRel = target01;
+      targetVolume = Math.max(0, Math.min(MAX_YT_VOLUME, target01 * MAX_YT_VOLUME * sceneMix));
       rampYT(targetVolume, durationMs);
     }
 
@@ -897,7 +899,7 @@
     function unlockSound() {
       soundBlocked = false;
       document.getElementById('sound-unlock').style.display = 'none';
-      try { eventVideo.muted = false; if (eventActive) eventVideo.volume = MAX_VOLUME; } catch (e) {}
+      try { eventVideo.muted = false; if (eventActive) eventVideo.volume = MAX_VOLUME * videoMix; } catch (e) {}
       try { overlayVideo.muted = false; } catch (e) {}
     }
     try { if (!(navigator.userActivation && navigator.userActivation.hasBeenActive)) showSoundUnlock(); } catch (e) {}
@@ -909,7 +911,7 @@
     function startSfx(url) {
       stopSfx(true);
       sfxAudio = new Audio(url);
-      sfxAudio.volume = 0.8;
+      sfxAudio.volume = 0.8 * videoMix;
       sfxAudio.play().catch((e) => console.warn('Effet sonore :', e));
     }
     function stopSfx(now) {
@@ -964,7 +966,7 @@
       eventVideo.currentTime = 0;
       fadeInVideo(eventVideo);                 // volume plafonné + fondu d'entrée
       eventVideo.muted = false;
-      eventVideo.onplaying = () => { eventVideo.muted = false; if (eventVideo.volume < 0.05 && !soundBlocked) eventVideo.volume = MAX_VOLUME; };
+      eventVideo.onplaying = () => { eventVideo.muted = false; if (eventVideo.volume < 0.05 && !soundBlocked && videoMix > 0.05) eventVideo.volume = MAX_VOLUME * videoMix; };
       eventVideo.play().catch((err) => {
         console.error('Erreur vidéo d\'annonce :', err);
         if (err && err.name === 'NotAllowedError') {       // le navigateur bloque le son : la vidéo démarre muette, un clic active le son
@@ -1131,6 +1133,16 @@
             if (overlayVideo.paused) overlayVideo.play().catch(() => {});
             else overlayVideo.pause();
           }
+          break;
+
+        case 'setMixer':
+          sceneMix = Math.max(0, Math.min(1, data.scene == null ? 1 : data.scene));
+          videoMix = Math.max(0, Math.min(1, data.videos == null ? 1 : data.videos));
+          targetVolume = Math.max(0, Math.min(MAX_YT_VOLUME, lastRel * MAX_YT_VOLUME * sceneMix));
+          try { if (ytReady) ytPlayer.setVolume(targetVolume); } catch (e) {}
+          try { if (eventActive) eventVideo.volume = Math.min(1, MAX_VOLUME * videoMix); } catch (e) {}
+          try { if (overlayVideo.hasAttribute('src')) overlayVideo.volume = Math.min(1, (String(overlayVideo.src).includes('Maire.mp4') ? 1.0 : MAX_VOLUME) * videoMix); } catch (e) {}
+          try { if (sfxAudio) sfxAudio.volume = 0.8 * videoMix; } catch (e) {}
           break;
 
         case 'setVolume':

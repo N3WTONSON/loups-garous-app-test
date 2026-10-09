@@ -1,4 +1,4 @@
-const VERSION_APP = "79";
+const VERSION_APP = "82";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -147,7 +147,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=79', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=82', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -157,6 +157,7 @@ window.addEventListener('message', (event) => {
   const data = event.data;
   if (!data) return;
   if (data.action === 'projectorReady') {
+    setTimeout(pushMixerToProjector, 300);
     syncLobbyToProjector();
   } else if (data.action === 'eventEnded') {
     // l'annonce de mort vient de se terminer : victoire éventuelle d'abord, sinon l'annonce suivante, puis le lever du jour
@@ -694,9 +695,33 @@ function setProjectorVideoVolume(vol, duration = 600) {
 // ---- Limite du niveau audio : aucun son ne dépasse MAX_VOLUME, et chaque son démarre en fondu (jamais « d'un seul coup ») ----
 const MAX_VOLUME = 0.8;          // plafond du volume (1 = maximum) pour tous les sons de la régie
 const FADE_IN_MS = 500;
+// ---- Curseurs de volume (0 à 1, appliqués par-dessus les niveaux ci-dessous) ----
+const mixer = { voix: 1, musique: 1, scene: 1, videos: 1 };
+try { Object.assign(mixer, JSON.parse(localStorage.getItem('lg_mixer') || '{}')); } catch (e) {}
+function setMixer(key, pct) {
+  mixer[key] = Math.max(0, Math.min(1, pct / 100));
+  try { localStorage.setItem('lg_mixer', JSON.stringify(mixer)); } catch (e) {}
+  const lab = document.getElementById('mix-val-' + key); if (lab) lab.textContent = Math.round(mixer[key] * 100) + ' %';
+  if (key === 'voix' && typeof currentAudio !== 'undefined' && currentAudio && !currentAudio.ended) {
+    currentAudio.volume = Math.min(1, (LOUD_AUDIO[lastVoiceFile] || MAX_VOLUME) * mixer.voix);
+  }
+  if (key === 'musique' && typeof musicAudio !== 'undefined' && musicAudio) { try { musicAudio.volume = Math.min(1, musicLevel()); } catch (e) {} }
+  if (key === 'scene' || key === 'videos') pushMixerToProjector();
+}
+function pushMixerToProjector() { sendToProjector({ action: 'setMixer', scene: mixer.scene, videos: mixer.videos }); }
+let lastVoiceFile = null;
+function toggleMixer(on) { document.getElementById('mixer-panel').style.display = on ? 'block' : 'none'; }
+function initMixerUI() {
+  ['voix', 'musique', 'scene', 'videos'].forEach((k) => {
+    const el = document.getElementById('mix-' + k); if (el) el.value = Math.round(mixer[k] * 100);
+    const lab = document.getElementById('mix-val-' + k); if (lab) lab.textContent = Math.round(mixer[k] * 100) + ' %';
+  });
+}
+document.addEventListener('DOMContentLoaded', initMixerUI);
 const LOUD_AUDIO = { "Fermer les yeux.mp3": 1.0, "Appel Cupidon V2.mp3": 1.0 };   // sons un peu plus forts que le plafond habituel          // durée du fondu d'entrée
 
 function fadeInAudio(audio, ms = FADE_IN_MS, max = MAX_VOLUME) {
+  max = Math.min(1, max * mixer.voix);
   const steps = 10;
   let i = 0;
   audio.volume = 0;
@@ -776,7 +801,7 @@ function musicLevel() {
   let v = base;
   if (musicQuiet && musicMode === 'wait') v = Math.min(v, MUSIC_SPEECH_VOLUME);
   if (musicDuck) v = Math.min(v, MUSIC_DUCK_VOLUME);
-  return v;
+  return v * mixer.musique;
 }
 
 function setMusicVolume(ms = 300) {
@@ -939,6 +964,7 @@ let nightDeaths = 0;   // morts de la nuit (loups, poison, Chasseur, chagrin) : 
 let dayQueue = null;   // annonces restantes avant le lever du jour (null = aucune annonce en cours)
 
 function startDayScene() {
+  stopRoleVideo();
   if (successionPending && gateSuccession(startDayScene)) return;
   dayQueue = null;
   hunterState = null;
@@ -977,6 +1003,7 @@ function nextDayStep() {
 function playDayPhase() {
   if (startBlocked()) return;
   setNextCall(null);
+  stopRoleVideo();   // la vidéo du dernier personnage appelé (ex. Sorcière) s'arrête quand le jour se lève
   stopLobbyMusic();
   currentTurnRole = null;
   if (dayQueue) { startDayScene(); return; }              // 2e clic : on n'attend plus les annonces
@@ -1185,6 +1212,7 @@ function playAudioFile(filename, opts = {}) {
     const url = mediaUrl('audio', candidates[i]);
     const audio = new Audio(url);
     currentAudio = audio;
+    lastVoiceFile = filename;
     fadeInAudio(audio, FADE_IN_MS, LOUD_AUDIO[filename] || MAX_VOLUME);   // niveau plafonné + fondu d'entrée
 
     audio.addEventListener('ended', () => {

@@ -856,3 +856,15 @@ input[type="number"] {
   margin: 12px 0 0; padding: 12px 14px; border-radius: 10px; text-align: center; font-weight: 600;
   background: rgba(252, 211, 77, 0.14); border: 2px solid #fcd34d; color: #fde68a; cursor: pointer;
 }
+
+.help-btn { position: fixed; top: 12px; right: 12px; z-index: 1000; padding: 8px 14px; border-radius: 20px; border: 1px solid rgba(255,255,255,.3); background: rgba(30,30,50,.85); color: #fff; font-weight: bold; cursor: pointer; }
+.help-btn:hover { background: #6366f1; }
+.help-box { max-width: 640px; max-height: 85vh; overflow-y: auto; text-align: left; }
+.help-content h3 { margin: 16px 0 6px; color: #a5b4fc; }
+.help-content ol, .help-content ul { padding-left: 22px; line-height: 1.5; }
+
+.mixer-panel { position: fixed; top: 54px; right: 12px; z-index: 1001; width: 300px; max-width: calc(100vw - 24px); padding: 14px; border-radius: 12px; background: rgba(20,20,40,.96); border: 1px solid rgba(255,255,255,.25); color: #fff; box-shadow: 0 8px 30px rgba(0,0,0,.5); }
+.mixer-panel h3 { margin: 0 0 10px; }
+.mixer-panel label { display: block; margin: 10px 0; font-size: .9rem; }
+.mixer-panel label span { float: right; opacity: .8; }
+.mixer-panel input[type=range] { width: 100%; margin-top: 6px; }
