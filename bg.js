@@ -1,7 +1,7 @@
 // Fond animé : vidéo de village (nuit par défaut, jour pour les scènes de jour). Hébergée sur Supabase.
 (function () {
   var BASE = "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/";
-  var FILES = { night: BASE + "fond-village-nuit.mp4", day: BASE + "fond-village-jour.mp4" };
+  var FILES = { night: BASE + "fond-village-nuit%20720p.mp4", day: BASE + "fond-village-jour%20720p.mp4" };
   var current = null;
   var video = null;
 
