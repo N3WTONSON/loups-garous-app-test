@@ -1,4 +1,4 @@
-const VERSION_APP = "87";
+const VERSION_APP = "88";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -223,7 +223,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=87', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=88', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -267,19 +267,149 @@ function handleProjectorMessage(data) {
   }
 }
 
+
+// ------------------------- SAUVEGARDE / REPRISE DE LA PARTIE -------------------------
+// L'état de la partie est enregistré dans le navigateur de la régie ; après une veille, un rechargement ou une fermeture
+// de la page, on peut reprendre le même salon (même code) : les téléphones se reconnectent tout seuls.
+const SAVE_KEY = 'lg_save_v1';
+const SAVE_MAX_AGE = 12 * 3600 * 1000;
+let restoring = false;
+let savedSnapshot = null;
+
+function saveReplacer(k, v) {
+  if (v instanceof Set) return { __set: [...v] };
+  if (v instanceof Map) return { __map: [...v] };
+  return v;
+}
+function saveReviver(k, v) {
+  if (v && typeof v === 'object') {
+    if (v.__set) return new Set(v.__set);
+    if (v.__map) return new Map(v.__map);
+  }
+  return v;
+}
+
+function saveGame() {
+  if (TEST_MODE || restoring || gameOver || !hostOpened || !roomCode || !players.length) return;
+  try {
+    const snap = {
+      t: Date.now(), roomCode,
+      players: players.map((p) => { const o = Object.assign({}, p); delete o.conn; o.connected = false; return o; }),
+      roles, distributed, gameStarted, currentPhase, reviewMode, allSeenShown,
+      nightCalled, calledOnce, activeCallRoles, nextCallKey, foxPowerLost, mayorCalled,
+      witchState, mayor, gameOver, hunterDone, nightDeaths, thiefOffers
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(snap, saveReplacer));
+  } catch (e) { /* stockage plein ou indisponible : on continue sans sauvegarde */ }
+}
+
+function clearSavedGame() { try { localStorage.removeItem(SAVE_KEY); } catch (e) {} }
+
+function loadSavedGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw, saveReviver);
+    if (!s || !s.roomCode || !Array.isArray(s.players) || !s.players.length) return null;
+    if (Date.now() - (s.t || 0) > SAVE_MAX_AGE) { clearSavedGame(); return null; }
+    return s;
+  } catch (e) { return null; }
+}
+
+function restoreGame() {
+  const s = savedSnapshot;
+  if (!s) return;
+  restoring = true;
+  players = s.players.map((p) => Object.assign({}, p, { conn: null, connected: false }));
+  roles = s.roles || [];
+  distributed = !!s.distributed;
+  gameStarted = !!s.gameStarted;
+  currentPhase = s.currentPhase || 'night';
+  reviewMode = false;
+  allSeenShown = !!s.allSeenShown;
+  nightCalled = s.nightCalled instanceof Set ? s.nightCalled : new Set();
+  calledOnce = s.calledOnce instanceof Set ? s.calledOnce : new Set();
+  activeCallRoles = s.activeCallRoles instanceof Set ? s.activeCallRoles : new Set(roles);
+  nextCallKey = s.nextCallKey || null;
+  foxPowerLost = !!s.foxPowerLost;
+  mayorCalled = !!s.mayorCalled;
+  witchState = s.witchState || { lifeUsed: false, deathUsed: false };
+  mayor = s.mayor || null;
+  gameOver = !!s.gameOver;
+  hunterDone = !!s.hunterDone;
+  nightDeaths = s.nightDeaths || 0;
+  thiefOffers = s.thiefOffers instanceof Map ? s.thiefOffers : new Map();
+  const b = document.getElementById('resume-banner'); if (b) b.remove();
+  initHost(0, s.roomCode);
+}
+
+function finishRestore() {
+  restoring = false;
+  try {
+    updateMJPlayerList();
+    updateMJRoleList();
+    if (mayor && !players.some((p) => p.name === mayor && p.alive)) {
+      mayor = null;
+      showToast('👑 Le Maire était mort : désignez un nouveau Maire.', 'info');
+    }
+    if (distributed) {
+      toggleSetupCard(true);
+      updateCallButtons();
+      renderMJDashboard();
+      setPhase(currentPhase);
+      if (nextCallKey) setNextCall(nextCallKey);
+    }
+    syncLobbyToProjector();
+    showToast('♻️ Partie reprise : l\'étape qui était en cours est à relancer. Les joueurs se reconnectent…', 'info');
+  } catch (e) { console.warn('Reprise partielle :', e); }
+}
+
+function discardSavedGame() {
+  clearSavedGame();
+  savedSnapshot = null;
+  const b = document.getElementById('resume-banner'); if (b) b.remove();
+}
+
+function showResumeBanner() {
+  if (TEST_MODE) return;
+  savedSnapshot = loadSavedGame();
+  if (!savedSnapshot) return;
+  const s = savedSnapshot;
+  const div = document.createElement('div');
+  div.id = 'resume-banner';
+  div.className = 'modal-backdrop';
+  const age = Math.max(1, Math.round((Date.now() - s.t) / 60000));
+  div.innerHTML = '<div class="modal-box"><h2 class="titre-wolf">♻️ Partie en cours retrouvée</h2>' +
+    '<p class="modal-text">Salon <b>' + escapeHtml(s.roomCode) + '</b> · ' + s.players.length + ' joueur(s) · ' +
+    (s.distributed ? 'rôles distribués' : 'avant la distribution') + ' · sauvegardée il y a ' + age + ' min.</p>' +
+    '<p class="modal-hint">Les téléphones des joueurs se reconnectent tout seuls. L\'étape qui était en cours au moment de la coupure est à relancer.</p>' +
+    '<div class="modal-actions"><button class="btn btn-night" id="resume-yes">♻️ Reprendre la partie</button>' +
+    '<button class="btn btn-danger" id="resume-no">🗑️ Nouvelle partie</button></div></div>';
+  document.body.appendChild(div);
+  document.getElementById('resume-yes').onclick = restoreGame;
+  document.getElementById('resume-no').onclick = discardSavedGame;
+}
+
+if (!TEST_MODE) {
+  setInterval(saveGame, 2000);
+  window.addEventListener('pagehide', saveGame);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveGame(); });
+  window.addEventListener('DOMContentLoaded', showResumeBanner);
+}
+
 function generateRoomCode() {
   return Math.random().toString(36).substring(2, 6).toUpperCase();
 }
 
-function initHost(attempt = 0) {
-  startLobbyMusic();                // lancée dans le clic « Créer un Salon » : le navigateur autorise la lecture
+function initHost(attempt = 0, forcedCode = null) {
+  if (!restoring) startLobbyMusic();                // lancée dans le clic « Créer un Salon » : le navigateur autorise la lecture
   if (peer && !peer.destroyed) peer.destroy();
-  roomCode = generateRoomCode();
+  roomCode = forcedCode || generateRoomCode();
   peer = new Peer("LG-" + roomCode);
 
   peer.on('open', () => {
     hostOpened = true;
-    startLobbyMusic();                // musique du lobby, en boucle jusqu'au début de la partie
+    if (!restoring) startLobbyMusic();                // musique du lobby, en boucle jusqu'au début de la partie
     document.getElementById('host-ui').style.display = 'block';
     document.getElementById('room-code-display').innerText = roomCode;
     document.getElementById('mj-setup-card').style.display = 'block';
@@ -299,6 +429,7 @@ function initHost(attempt = 0) {
     syncLobbyToProjector();
     setupRemoteProjectorUI();
     keepScreenAwake();
+    if (restoring) finishRestore();
   });
 
   peer.on('connection', (conn) => {
@@ -311,7 +442,12 @@ function initHost(attempt = 0) {
   });
 
   peer.on('error', (err) => {
-    if (err.type === 'unavailable-id' && attempt < 3) {
+    if (err.type === 'unavailable-id' && restoring && attempt < 15) {
+      // l'ancien salon est encore enregistré chez le serveur PeerJS : on réessaie le même code quelques secondes
+      showToast('♻️ Reprise du salon ' + roomCode + '… (tentative ' + (attempt + 1) + ')', 'info');
+      const code = roomCode;
+      setTimeout(() => initHost(attempt + 1, code), 3000);
+    } else if (err.type === 'unavailable-id' && attempt < 3 && !restoring) {
       initHost(attempt + 1);
     } else if (err.type === 'unavailable-id') {
       alert("Impossible de réserver un code de salon. Réessayez.");
@@ -1621,6 +1757,7 @@ function showVictory() {
   const winner = currentWinner();
   if (gameOver || !winner) return;
   gameOver = true;
+  clearSavedGame();
   closeVillageVote(true);
   closeMayorVote(true);
   stopMusic();

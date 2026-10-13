@@ -162,7 +162,8 @@ function connect(room, name, token, isAuto) {
     conn = peer.connect("LG-" + room, { reliable: true });
 
     const timeout = setTimeout(() => {
-      if (!conn.open) failJoin("Salon introuvable. Vérifiez le code ou réessayez.", isAuto);
+      if (conn.open) return;
+      if (isAuto) retryAuto(); else failJoin("Salon introuvable. Vérifiez le code ou réessayez.", false);
     }, 10000);
 
     conn.on('open', () => {
@@ -174,6 +175,7 @@ function connect(room, name, token, isAuto) {
       if (!data) return;
       if (data.type === 'joined') {
         joined = true;
+        autoTries = 0;
         saveSession(session);
         setBusy(false);
         showGame(name);
@@ -277,6 +279,8 @@ function connect(room, name, token, isAuto) {
   peer.on('error', (err) => {
     if (joined) {
       scheduleReconnect();
+    } else if (isAuto) {
+      retryAuto();   // la régie est peut-être en train de reprendre la partie : on garde la session et on réessaie
     } else if (err.type === 'peer-unavailable') {
       failJoin("Salon introuvable. Vérifiez le code fourni par le MJ.", isAuto);
     } else {
@@ -290,6 +294,15 @@ function failJoin(message, clear) {
   if (clear) clearSession();
   showJoinForm();
   showError(message);
+}
+
+let autoTries = 0;
+function retryAuto() {
+  autoTries++;
+  if (autoTries > 100) { autoTries = 0; failJoin("Salon introuvable. Vérifiez le code fourni par le MJ.", true); return; }
+  const st = document.getElementById('status-text'); if (st) st.textContent = "Connexion à la régie en cours… (la partie reprend dès que le MJ est de retour)";
+  clearTimeout(retryTimer);
+  retryTimer = setTimeout(() => { if (session) connect(session.room, session.name, session.token, true); }, 3000);
 }
 
 function scheduleReconnect() {

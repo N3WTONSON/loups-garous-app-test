@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <link rel="icon" href="data:,">
   <title>Loup-Garou - Régie Maître du Jeu</title>
-  <link rel="stylesheet" href="style.css?v=87">
+  <link rel="stylesheet" href="style.css?v=88">
   <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 </head>
@@ -21,7 +21,7 @@
   </div>
   <button id="help-btn" class="help-btn" onclick="toggleHelp(true)" title="Comment utiliser l'application" aria-label="Aide">❓ Aide</button>
   <script>function toggleHelp(on){document.getElementById('help-modal').style.display=on?'flex':'none';}document.addEventListener('keydown',function(e){if(e.key==='Escape')toggleHelp(false);});</script>
-  <script src="bg.js?v=87"></script>
+  <script src="bg.js?v=88"></script>
 
 <header>
   <img src="https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/images/Titre.png?v=2" alt="Les Loups-garous de Thiercelieux" class="site-title-img">
@@ -283,6 +283,7 @@
         <h3>4. En cas de souci</h3>
         <ul>
           <li>Pas de son sur l'écran secondaire : clique une fois dessus.</li>
+          <li>Page rechargée, tablette en veille ou fermée : rouvre la régie, clique sur <b>♻️ Reprendre la partie</b> (même code de salon). Les téléphones se reconnectent seuls ; relance l'étape qui était en cours.</li>
           <li>Un joueur déconnecté : il recharge sa page et se reconnecte avec le même prénom.</li>
           <li>Après une mise à jour : Ctrl+F5 et vérifie le numéro de version en bas de page.</li>
         </ul>
@@ -291,7 +292,7 @@
     </div>
   </div>
 
-  <p id="app-version" class="hint" style="text-align:center;">Version 87</p>
+  <p id="app-version" class="hint" style="text-align:center;">Version 88</p>
 
   <script>
     (function () {
@@ -315,6 +316,6 @@
       });
     })();
   </script>
-  <script src="script.js?v=87"></script>
+  <script src="script.js?v=88"></script>
 </body>
 </html>
