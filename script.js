@@ -1,4 +1,4 @@
-const VERSION_APP = "88";
+const VERSION_APP = "90";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -223,7 +223,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=88', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=90', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -1489,6 +1489,7 @@ function fallbackSpeech(filename) {
 }
 
 function stopAllMedia() {
+  if (thiefCallTimer) { clearTimeout(thiefCallTimer); thiefCallTimer = null; }
   dayQueue = null;
   afterAudio = null;
   hunterState = null;
@@ -1528,6 +1529,9 @@ function witchCallAudio() {
   return "Sorciere.mp3";
 }
 
+const THIEF_CALL_DELAY = 10000;   // délai (ms) entre « Fermer les yeux » et l'appel du Voleur
+let thiefCallTimer = null;
+
 function playRole(role) {
   if (startBlocked()) return;
   const roleFiles = {
@@ -1542,21 +1546,38 @@ function playRole(role) {
   const item = roleFiles[role];
   if (!item) return;
   if (calledOnce.has(role)) return;
-  if (role === 'voleur') setPhase('day');   // la phase du Voleur est une scène de jour
+  if (role === 'voleur') setPhase('night');   // le Voleur est appelé de nuit : tout le monde ferme les yeux d'abord
   if (role === 'renard' && foxPowerLost) return;   // le Renard n'a plus de pouvoir
   if (role === 'sorciere' && witchState.lifeUsed && witchState.deathUsed) return;   // plus de potion : on passe son tour
   currentTurnRole = TURN_ROLE_BY_CALL[role] || null;
   nightCalled.add(role);
   setNextCall(null);
 
+  if (role === 'voleur') {
+    // « Fermez les yeux » d'abord (personne ne doit deviner qui est le Voleur), puis l'appel du Voleur, sa vidéo et son tour
+    calledOnce.add(role);
+    updateCallButtons();
+    playAudioFile(CLOSE_EYES_AUDIO, { done: () => {
+      // 10 secondes de silence pour que tout le monde ait fermé les yeux
+      thiefCallTimer = setTimeout(() => {
+        thiefCallTimer = null;
+        playAudioFile(item.audio);
+        playRoleVideo(item.video, item.mode || 'center');
+        startThiefTurn();
+        renderMJDashboard();
+      }, THIEF_CALL_DELAY);
+    } });
+    renderMJDashboard();
+    return;
+  }
+
   playAudioFile(role === 'sorciere' ? witchCallAudio() : item.audio);
   if (item.video) playRoleVideo(item.video, item.mode || 'center');
 
-  if (role === 'voleur' || role === 'cupidon') {
+  if (role === 'cupidon') {
     calledOnce.add(role);
     updateCallButtons();
   }
-  if (role === 'voleur') startThiefTurn();
   if (role === 'cupidon') startCupidTurn();
   if (role === 'loups') startWolfTurn();
   if (role === 'sorciere') startWitchTurn();
