@@ -1,4 +1,4 @@
-const VERSION_APP = "90";
+const VERSION_APP = "91";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -36,6 +36,7 @@ const ASSETS = {
     "Appel renard V2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20renard%20V2.mp3",
     "Appel voleur V3.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20voleur%20V3.mp3",
     "Appel voyante V2.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Appel%20voyante%20V2.mp3",
+    "Ouvrez les yeux.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Ouvrez%20les%20yeux.mp3",
     "Fermer les yeux.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Fermer%20les%20yeux.mp3",
     "Voter.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Voter.mp3",
     "Le hurlement du loup 1.mp3": "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/audio/Le%20hurlement%20du%20loup%201.mp3",
@@ -223,7 +224,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=90', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=91', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -672,6 +673,7 @@ function startRoleReview() {
   players.forEach((p) => sendTo(p, { type: 'roleReview', on: true }));
   sendToProjector({ action: 'dayVote', show: true, mode: 'roles' });
   startDayMusic();
+  playAudioFile('Ouvrez les yeux.mp3');   // le jour se lève après le tour du Voleur
   setNextCall(null);
   showToast('🌞 Phase de jour : les joueurs reprennent connaissance de leur rôle sur leur téléphone.', 'info');
   updateCallButtons();
@@ -1305,6 +1307,7 @@ const FALLBACK_TEXTS = {
   "Le hurlement du loup 3.mp3": "Awouuuu !",
   "Effet sorciere.mp3": "Hi hi hi hi hi !",
   "Fermer les yeux.mp3": "Tout le monde ferme les yeux !",
+  "Ouvrez les yeux.mp3": "Tout le monde ouvre les yeux, le jour se lève !",
   "Maire.mp3": "Le village va maintenant élire son maire !",
   "Voter.mp3": "Le village va maintenant délibérer et voter !",
   "Appel Renard oui.mp3": "Oui, il y a au moins un Loup-Garou parmi ces trois personnes.",
