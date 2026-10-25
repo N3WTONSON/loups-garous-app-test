@@ -1,4 +1,4 @@
-const VERSION_APP = "91";
+const VERSION_APP = "92";
 console.info("Loup-Garou régie - version " + VERSION_APP);
 let foxPowerLost = false;      // le MJ a répondu « non » : le Renard perd définitivement son pouvoir
 let mayorCalled = false;       // le bouton « Le Maire » a déjà servi (bloqué ensuite)
@@ -149,6 +149,7 @@ function sendToProjector(msg) {
 
 function registerRemoteProjector(conn) {
   if (!remoteProjectors.includes(conn)) remoteProjectors.push(conn);
+  projectorPrefetchSent = false;
   conn.on('close', () => { remoteProjectors = remoteProjectors.filter((c) => c !== conn); updateRemoteProjectorUI(); });
   updateRemoteProjectorUI();
 }
@@ -224,7 +225,7 @@ function syncLobbyToProjector() {
 
 function openProjectorWindow() {
   if (!projectorOpen()) {
-    projectorWindow = window.open('projecteur.html?v=91', 'ProjecteurLoupGarou', 'width=1280,height=720');
+    projectorWindow = window.open('projecteur.html?v=92', 'ProjecteurLoupGarou', 'width=1280,height=720');
   } else {
     projectorWindow.focus();
   }
@@ -238,6 +239,7 @@ function handleProjectorMessage(data) {
   if (!data) return;
   if (data.action === 'projectorReady') {
     setTimeout(pushMixerToProjector, 300);
+    setTimeout(prefetchProjectorMedia, 1000);
     syncLobbyToProjector();
     sendToProjector({ action: 'bgPhase', phase: currentPhase });
   } else if (data.action === 'eventEnded') {
@@ -276,6 +278,7 @@ const SAVE_KEY = 'lg_save_v1';
 const SAVE_MAX_AGE = 12 * 3600 * 1000;
 let restoring = false;
 let savedSnapshot = null;
+let lastSavedStr = '';
 
 function saveReplacer(k, v) {
   if (v instanceof Set) return { __set: [...v] };
@@ -295,11 +298,16 @@ function saveGame() {
   try {
     const snap = {
       t: Date.now(), roomCode,
-      players: players.map((p) => { const o = Object.assign({}, p); delete o.conn; o.connected = false; return o; }),
+      players: players.map((p) => { const o = Object.assign({}, p); delete o.conn; delete o.lastSeen; o.connected = false; return o; }),
       roles, distributed, gameStarted, currentPhase, reviewMode, allSeenShown,
       nightCalled, calledOnce, activeCallRoles, nextCallKey, foxPowerLost, mayorCalled,
       witchState, mayor, gameOver, hunterDone, nightDeaths, thiefOffers
     };
+    snap.t = 0;
+    const str = JSON.stringify(snap, saveReplacer);
+    if (str === lastSavedStr) return;      // rien n'a changé : on n'écrit pas
+    lastSavedStr = str;
+    snap.t = Date.now();
     localStorage.setItem(SAVE_KEY, JSON.stringify(snap, saveReplacer));
   } catch (e) { /* stockage plein ou indisponible : on continue sans sauvegarde */ }
 }
@@ -406,10 +414,11 @@ function initHost(attempt = 0, forcedCode = null) {
   if (!restoring) startLobbyMusic();                // lancée dans le clic « Créer un Salon » : le navigateur autorise la lecture
   if (peer && !peer.destroyed) peer.destroy();
   roomCode = forcedCode || generateRoomCode();
-  peer = new Peer("LG-" + roomCode);
+  peer = new Peer("LG-" + roomCode, (window.LG && LG.peerOptions) || {});
 
   peer.on('open', () => {
     hostOpened = true;
+    prefetchHostMedia();
     if (!restoring) startLobbyMusic();                // musique du lobby, en boucle jusqu'au début de la partie
     document.getElementById('host-ui').style.display = 'block';
     document.getElementById('room-code-display').innerText = roomCode;
@@ -442,6 +451,10 @@ function initHost(attempt = 0, forcedCode = null) {
     conn.on('close', () => handlePlayerConnClose(conn));
   });
 
+  // connexion au serveur de signalisation perdue (réseau lent / coupé) : les joueurs déjà connectés restent connectés,
+  // mais les nouveaux ne peuvent plus entrer tant qu'on ne se reconnecte pas
+  peer.on('disconnected', () => scheduleHostReconnect(peer, 1500));
+
   peer.on('error', (err) => {
     if (err.type === 'unavailable-id' && restoring && attempt < 15) {
       // l'ancien salon est encore enregistré chez le serveur PeerJS : on réessaie le même code quelques secondes
@@ -460,9 +473,55 @@ function initHost(attempt = 0, forcedCode = null) {
   });
 }
 
+
+// ------------------------- RÉSEAU LENT / COUPÉ -------------------------
+function scheduleHostReconnect(p, delay) {
+  setTimeout(() => {
+    if (peer !== p || !p || p.destroyed || !p.disconnected) return;
+    try { p.reconnect(); } catch (e) {}
+    scheduleHostReconnect(p, Math.min(delay * 2, 15000));   // si ça échoue, on réessaie un peu plus tard
+  }, delay);
+}
+
+// Préchargement en arrière-plan des sons de la régie (ils sont ensuite lus depuis la mémoire du navigateur, sans attente)
+function prefetchHostMedia() {
+  if (!window.LG || !LG.prefetch) return;
+  const urls = [];
+  ['audio', 'music', 'images'].forEach((k) => Object.keys(ASSETS[k]).forEach((n) => urls.push(ASSETS[k][n])));
+  LG.prefetch(urls, { concurrency: 2, delay: 2500 });
+}
+
+// Le projecteur précharge (une seule fois) les fonds et les vidéos d'annonce / d'appel, puis les effets sonores
+let projectorPrefetchSent = false;
+function prefetchProjectorMedia() {
+  if (projectorPrefetchSent || !projectorOpen()) return;
+  projectorPrefetchSent = true;
+  const urls = [].concat(window.BG_URLS || [], Object.values(ASSETS.video), ['Effet sorciere.mp3', 'Le hurlement du loup 1.mp3', 'Le hurlement du loup 2.mp3', 'Le hurlement du loup 3.mp3'].map((n) => ASSETS.audio[n]));
+  sendToProjector({ action: 'prefetch', urls });
+}
+
+// Retour du réseau : on se reconnecte au serveur de signalisation tout de suite
+if (window.LG) LG.onOnline = () => { try { if (peer && !peer.destroyed && peer.disconnected) peer.reconnect(); } catch (e) {} };
+
+// Battement de cœur : détecte les téléphones dont la connexion est morte sans que le navigateur le signale
+const PING_EVERY = 8000, STALE_AFTER = 30000;
+setInterval(() => {
+  if (!hostOpened) return;
+  const now = Date.now();
+  let changed = false;
+  players.forEach((p) => {
+    if (p.conn && p.conn.open) { try { p.conn.send({ type: 'ping' }); } catch (e) {} }
+    if (p.connected && p.lastSeen && now - p.lastSeen > STALE_AFTER) { p.connected = false; changed = true; }
+  });
+  if (changed) refreshPlayerViews();
+}, PING_EVERY);
+
 // Message reçu d'un téléphone (PeerJS ou téléphone simulé de la page test)
 function routePlayerMessage(conn, data) {
   if (!data) return;
+  const who = players.find((pl) => pl.conn === conn);
+  if (who) { who.lastSeen = Date.now(); if (!who.connected && data.type !== 'join') { who.connected = true; refreshPlayerViews(); } }
+  if (data.type === 'pong') return;
   if (data.type === 'join') handleJoin(conn, data);
   else if (data.type === 'thiefSteal') handleThiefSteal(conn, data);
   else if (data.type === 'cupidChoice') handleCupidChoice(conn, data);
@@ -517,12 +576,13 @@ function handleJoin(conn, data) {
     }
     player.conn = conn;
     player.connected = true;
+    player.lastSeen = Date.now();
   } else {
     if (distributed) {
       conn.send({ type: 'rejected', message: "La partie a déjà commencé." });
       return;
     }
-    player = { name, token, role: "", alive: true, inLove: false, conn, connected: true };
+    player = { name, token, role: "", alive: true, inLove: false, conn, connected: true, lastSeen: Date.now() };
     players.push(player);
   }
 
@@ -1453,11 +1513,40 @@ function playAudioFile(filename, opts = {}) {
     lastVoiceFile = filename;
     fadeInAudio(audio, FADE_IN_MS, LOUD_AUDIO[filename] || MAX_VOLUME);   // niveau plafonné + fondu d'entrée
 
+    audio.preload = 'auto';
+
+    // Réseau lent : on prévient, et si le son ne démarre jamais (ou se fige) on ne bloque pas la partie
+    let slowTimer = setTimeout(() => {
+      if (currentAudio === audio && audio.readyState < 3 && !audio.ended) showToast('⏳ Réseau lent : chargement du son…', 'info');
+    }, 2500);
+    let giveUpTimer = setTimeout(() => {
+      if (currentAudio !== audio || audio.readyState >= 3) return;
+      console.warn('Son trop long à charger, voix de secours :', url);
+      currentAudio = null;
+      try { audio.pause(); } catch (e) {}
+      fallbackSpeech(filename);
+    }, 20000);
+    let freezeTimer = null;
+    const clearWatch = () => { clearTimeout(slowTimer); clearTimeout(giveUpTimer); clearTimeout(freezeTimer); };
+    audio.addEventListener('playing', () => { clearTimeout(slowTimer); clearTimeout(giveUpTimer); clearTimeout(freezeTimer); });
+    audio.addEventListener('waiting', () => {
+      clearTimeout(freezeTimer);
+      freezeTimer = setTimeout(() => {          // lecture figée depuis 15 s : on considère le son terminé
+        if (currentAudio !== audio || audio.ended || audio.readyState >= 3) return;
+        showToast('⚠️ Son interrompu par le réseau : on continue.', 'info');
+        currentAudio = null;
+        try { audio.pause(); } catch (e) {}
+        onAudioFinished();
+      }, 15000);
+    });
+
     audio.addEventListener('ended', () => {
+      clearWatch();
       if (currentAudio === audio) onAudioFinished();
     });
 
     audio.addEventListener('error', () => {
+      clearWatch();
       if (currentAudio !== audio) return;
       console.warn("Audio introuvable :", url);
       if (i + 1 < candidates.length) {
@@ -1806,7 +1895,7 @@ function findPlayer(name) { return players.find((p) => p.name === name) || null;
 function alivePlayers() { return players.filter((p) => p.alive); }
 function senderOf(conn) { return players.find((p) => p.conn === conn) || null; }
 function sendTo(p, msg) {
-  if (p && p.conn && p.conn.open) { p.conn.send(msg); return true; }
+  if (p && p.conn && p.conn.open) { try { p.conn.send(msg); return true; } catch (e) { return false; } }
   return false;
 }
 // décompte des votes : on ignore les votants et les cibles déjà morts

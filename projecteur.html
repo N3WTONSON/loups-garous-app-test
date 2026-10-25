@@ -433,7 +433,7 @@
   </style>
 </head>
 <body>
-  <script src="bg.js?v=91"></script>
+  <script src="bg.js?v=92"></script>
 
   <!-- ÉCRAN DE SALON D'ATTENTE -->
   <div id="waiting-screen">
@@ -500,8 +500,12 @@
     <div class="mayor-sub">Maire du village</div>
   </div>
 
-  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <link rel="preconnect" href="https://ifjiysdhxmidiswcsiuq.supabase.co" crossorigin>
+  <link rel="preconnect" href="https://unpkg.com" crossorigin>
+  <link rel="dns-prefetch" href="https://0.peerjs.com">
+  <script src="boot.js?v=92"></script>
+  <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js" onerror="document.write('<script src=&quot;https://cdn.jsdelivr.net/npm/peerjs@1.5.2/dist/peerjs.min.js&quot;><\/script>')"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" onerror="document.write('<script src=&quot;https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js&quot;><\/script>')"></script>
   <script src="https://www.youtube.com/iframe_api"></script>
 
   <script>
@@ -524,7 +528,7 @@
     }
     function connectToHost() {
       if (!REMOTE_ROOM || typeof Peer === 'undefined') return;
-      const pr = new Peer();
+      const pr = new Peer(undefined, (window.LG && LG.peerOptions) || {});
       pr.on('open', () => {
         const c = pr.connect('LG-' + REMOTE_ROOM, { reliable: true });
         hostConn = c;
@@ -613,6 +617,19 @@
     });
     window.addEventListener('resize', fitCenterOverlay);
 
+    // Réseau lent : si une vidéo ne démarre pas (25 s) ou se fige (15 s), on ne bloque pas la partie
+    function watchVideo(video, onStuck) {
+      let t = null;
+      const arm = (ms) => { clearTimeout(t); t = setTimeout(() => { if (video.getAttribute('src') && !video.ended) onStuck(); }, ms); };
+      const disarm = () => clearTimeout(t);
+      video.addEventListener('loadstart', () => arm(25000));
+      video.addEventListener('waiting', () => arm(15000));
+      video.addEventListener('stalled', () => arm(20000));
+      video.addEventListener('playing', disarm);
+      video.addEventListener('ended', disarm);
+      video.addEventListener('emptied', disarm);
+    }
+
     function hideOverlay() {
       clearTimeout(overlayShowTimer);
       overlayVideo.style.visibility = '';
@@ -622,6 +639,13 @@
       overlayVideo.removeAttribute('src');
       overlayVideo.load();
     }
+
+    watchVideo(overlayVideo, () => {
+      const loop = overlayVideo.loop;
+      const url = overlayVideo.getAttribute('src');
+      hideOverlay();
+      if (!loop) toHost({ action: 'overlayEnded', url });
+    });
 
     function onYouTubeIframeAPIReady() {
       ytPlayer = new YT.Player('player', {
@@ -753,6 +777,7 @@
     let eventActive = false;
     let eventTimer = null;
     const eventVideo = document.getElementById('event-video');
+    watchVideo(eventVideo, () => { if (eventActive && eventVideo.onerror) eventVideo.onerror(); });
     function hideDeaths() {
       const overlay = document.getElementById('death-overlay');
       clearTimeout(deathTimer);
@@ -1159,6 +1184,10 @@
             if (overlayVideo.paused) overlayVideo.play().catch(() => {});
             else overlayVideo.pause();
           }
+          break;
+
+        case 'prefetch':
+          if (window.LG && LG.prefetch && Array.isArray(data.urls)) LG.prefetch(data.urls, { concurrency: 1, delay: 4000 });
           break;
 
         case 'setMixer':

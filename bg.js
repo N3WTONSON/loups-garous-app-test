@@ -2,6 +2,7 @@
 (function () {
   var BASE = "https://ifjiysdhxmidiswcsiuq.supabase.co/storage/v1/object/public/assets/assets/mj/video/";
   var FILES = { night: BASE + "fond-village-nuit%20720p.mp4", day: BASE + "fond-village-jour%20720p.mp4" };
+  window.BG_URLS = [FILES.night, FILES.day];
   var current = null;
   var video = null;
 

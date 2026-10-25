@@ -155,8 +155,9 @@ function connect(room, name, token, isAuto) {
   showError("");
   setBusy(true);
   if (peer && !peer.destroyed) peer.destroy();
+  lastHostMsg = Date.now();
 
-  peer = new Peer();
+  peer = new Peer(undefined, (window.LG && LG.peerOptions) || {});
 
   peer.on('open', () => {
     conn = peer.connect("LG-" + room, { reliable: true });
@@ -164,7 +165,7 @@ function connect(room, name, token, isAuto) {
     const timeout = setTimeout(() => {
       if (conn.open) return;
       if (isAuto) retryAuto(); else failJoin("Salon introuvable. Vérifiez le code ou réessayez.", false);
-    }, 10000);
+    }, 20000);
 
     conn.on('open', () => {
       clearTimeout(timeout);
@@ -173,9 +174,12 @@ function connect(room, name, token, isAuto) {
 
     conn.on('data', (data) => {
       if (!data) return;
+      lastHostMsg = Date.now();
+      if (data.type === 'ping') { try { conn.send({ type: 'pong' }); } catch (e) {} return; }
       if (data.type === 'joined') {
         joined = true;
         autoTries = 0;
+        prefetchRoleImages();
         saveSession(session);
         setBusy(false);
         showGame(name);
@@ -295,6 +299,17 @@ function failJoin(message, clear) {
   showJoinForm();
   showError(message);
 }
+
+let lastHostMsg = Date.now();
+// Connexion « fantôme » (réseau mobile qui décroche sans prévenir) : sans nouvelles de la régie depuis 30 s, on se reconnecte
+setInterval(function () {
+  if (joined && session && Date.now() - lastHostMsg > 30000) {
+    lastHostMsg = Date.now();
+    try { if (conn) conn.close(); } catch (e) {}
+    scheduleReconnect();
+  }
+}, 5000);
+if (window.LG) LG.onOnline = function () { if (session && joined) { lastHostMsg = 0; } };
 
 let autoTries = 0;
 function retryAuto() {
@@ -1033,4 +1048,12 @@ function hunterConfirm() {
 
 function showHunterDone() {
   hidePanel('hunter-panel');
+}
+
+
+// Images des rôles : préchargées en arrière-plan dès l'entrée dans la partie (affichage instantané à la distribution)
+function prefetchRoleImages() {
+  if (!window.LG || !LG.prefetch) return;
+  const urls = Object.keys(roleData).map((r) => roleData[r].image).filter(Boolean).map((f) => mediaUrl('images', f));
+  LG.prefetch(urls, { concurrency: 2, delay: 3000 });
 }
